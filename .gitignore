@@ -3,3 +3,7 @@
 
 # Cursor Rules
 .cursorrules/
+node_modules
+
+# Local Netlify folder
+.netlify
