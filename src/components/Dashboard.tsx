@@ -17,7 +17,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -28,7 +27,7 @@ import Alert from '@/components/Alert';
 const SUMMARY_CARDS = [
   {
     title: 'Total Revenue (YTD)',
-    value: '₩120,000',
+    value: '₦120,000',
     change: '+8.5%',
     changeLabel: 'from last month',
     trend: 'up',
@@ -38,7 +37,7 @@ const SUMMARY_CARDS = [
   },
   {
     title: 'Total Expenses (YTD)',
-    value: '₩70,000',
+    value: '₦70,000',
     change: '+8.5%',
     changeLabel: '+10% from last year',
     trend: 'up',
@@ -48,7 +47,7 @@ const SUMMARY_CARDS = [
   },
   {
     title: 'Pending Invoices',
-    value: '₩25,000',
+    value: '₦25,000',
     status: 'Urgent Attention Needed',
     statusVariant: 'error' as const,
     icon: FileText,
@@ -57,7 +56,7 @@ const SUMMARY_CARDS = [
   },
   {
     title: 'Overdue Payments',
-    value: '₩8,500',
+    value: '₦8,500',
     status: 'Follow-Up Required',
     statusVariant: 'warning' as const,
     icon: FileWarning,
@@ -89,7 +88,7 @@ const PAID_UNPAID_DATA = [
 ];
 
 const REVENUE_BY_CATEGORY = [
-  { name: 'Tuition fee', value: 50, color: '#073E60' },
+  { name: 'Fees & commissions', value: 50, color: '#073E60' },
   { name: 'Services', value: 20, color: '#f97316' },
   { name: 'Donation', value: 15, color: '#eab308' },
   { name: 'Others', value: 8, color: '#ef4444' },
@@ -108,57 +107,57 @@ type InvoiceStatus = 'Paid' | 'Overdue' | 'Pending' | 'Partially Paid';
 
 const INVOICE_ROWS = [
   {
-    id: '1',
+    id: 'INV-0001',
     invoiceNumber: 'INV-2023-001',
-    amount: '$1200.00',
-    paymentReceived: '$1200.00',
+    amount: '₦1,200.00',
+    paymentReceived: '₦1,200.00',
     created: 'Mar 20, 2025 4:59 PM',
     due: 'Due Mar 28, 2025',
-    student: 'Michael Brown',
+    customer: 'Michael Brown',
     email: 'guardianemailaddress@hotmail.com',
     status: 'Paid' as InvoiceStatus,
   },
   {
-    id: '2',
+    id: 'INV-0002',
     invoiceNumber: 'INV-2023-001',
-    amount: '$1200.00',
-    paymentReceived: '$0',
+    amount: '₦1,200.00',
+    paymentReceived: '₦0.00',
     created: 'Mar 20, 2025 4:59 PM',
     due: 'Due Mar 28, 2025',
-    student: 'Michael Brown',
+    customer: 'Michael Brown',
     email: 'guardianemailaddress@hotmail.com',
     status: 'Overdue' as InvoiceStatus,
   },
   {
-    id: '3',
+    id: 'INV-0003',
     invoiceNumber: 'INV-2023-001',
-    amount: '$1200.00',
-    paymentReceived: '$0',
+    amount: '₦1,200.00',
+    paymentReceived: '₦0.00',
     created: 'Mar 20, 2025 4:59 PM',
     due: 'Due Mar 28, 2025',
-    student: 'Michael Brown',
+    customer: 'Michael Brown',
     email: 'guardianemailaddress@hotmail.com',
     status: 'Pending' as InvoiceStatus,
   },
   {
-    id: '4',
+    id: 'INV-0004',
     invoiceNumber: 'INV-2023-001',
-    amount: '$1200.00',
-    paymentReceived: '$1200.00',
+    amount: '₦1,200.00',
+    paymentReceived: '₦1,200.00',
     created: 'Mar 20, 2025 4:59 PM',
     due: 'Due Mar 28, 2025',
-    student: 'Michael Brown',
+    customer: 'Michael Brown',
     email: 'guardianemailaddress@hotmail.com',
     status: 'Paid' as InvoiceStatus,
   },
   {
-    id: '5',
+    id: 'INV-0005',
     invoiceNumber: 'INV-2023-001',
-    amount: '$1200.00',
-    paymentReceived: '$600.00',
+    amount: '₦1,200.00',
+    paymentReceived: '₦600.00',
     created: 'Mar 20, 2025 4:59 PM',
     due: 'Due Mar 28, 2025',
-    student: 'Michael Brown',
+    customer: 'Michael Brown',
     email: 'guardianemailaddress@hotmail.com',
     status: 'Partially Paid' as InvoiceStatus,
   },
@@ -174,7 +173,13 @@ function StatusBadge({ status }: { status: InvoiceStatus }) {
   return <span className={map[status]}>{status}</span>;
 }
 
-const INVOICE_TABS = ['All invoices', 'Draft', 'Outstanding', 'Overdue', 'Paid'];
+const INVOICE_TABS = [
+  'All invoices',
+  'Draft',
+  'Outstanding',
+  'Overdue',
+  'Paid',
+];
 
 const Dashboard: React.FC = () => {
   const [invoiceTab, setInvoiceTab] = useState(INVOICE_TABS[0]);
@@ -194,11 +199,14 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* Summary cards */}
-      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4'>
-        {SUMMARY_CARDS.map((card) => {
+      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5'>
+        {SUMMARY_CARDS.map(card => {
           const Icon = card.icon;
           return (
-            <div key={card.title} className='card flex flex-col gap-3'>
+            <div
+              key={card.title}
+              className='card card-hover flex flex-col gap-3'
+            >
               <div className='flex items-start justify-between'>
                 <div
                   className={`p-2 rounded-lg ${card.iconBg} ${card.iconColor}`}
@@ -226,7 +234,9 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
               <p className='text-sm font-medium text-gray-500'>{card.title}</p>
-              <p className='text-xl font-semibold text-gray-900'>{card.value}</p>
+              <p className='text-xl font-semibold text-gray-900'>
+                {card.value}
+              </p>
               {'changeLabel' in card && (
                 <p className='text-xs text-gray-500'>{card.changeLabel}</p>
               )}
@@ -236,75 +246,157 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Finance overview */}
-      <div className='card overflow-hidden'>
+      <div className='card card-hover overflow-hidden'>
         <div className='flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4'>
-          <h2 className='text-lg font-semibold text-gray-900'>Finance overview</h2>
+          <h2 className='text-lg font-semibold text-gray-900'>
+            Finance overview
+          </h2>
           <div className='flex flex-wrap items-center gap-4'>
             <div className='flex items-center gap-3 text-sm'>
               <span className='flex items-center gap-1.5'>
-                <span className='w-2.5 h-2.5 rounded-full bg-primary-600' aria-hidden />
+                <span
+                  className='w-2.5 h-2.5 rounded-full bg-green-600'
+                  aria-hidden
+                />
                 Revenue
               </span>
               <span className='flex items-center gap-1.5'>
-                <span className='w-2.5 h-2.5 rounded-full bg-error-400' aria-hidden />
+                <span
+                  className='w-2.5 h-2.5 rounded-full bg-red-500'
+                  aria-hidden
+                />
                 Expenses
               </span>
               <span className='flex items-center gap-1.5'>
-                <span className='w-2.5 h-2.5 rounded-full bg-success-500' aria-hidden />
+                <span
+                  className='w-2.5 h-2.5 rounded-full bg-[#073E60]'
+                  aria-hidden
+                />
                 Invoice
               </span>
             </div>
-            <select className='input-field w-auto py-1.5 text-sm' defaultValue='this-year'>
+            <select
+              className='input-field w-auto py-1.5 text-sm'
+              defaultValue='this-year'
+            >
               <option value='this-year'>This year</option>
             </select>
           </div>
         </div>
         <div className='grid grid-cols-3 gap-4 mb-6'>
-          <div className='p-3 bg-gray-50 rounded-lg'>
-            <p className='text-xs font-medium text-gray-500 uppercase'>Total Revenue</p>
-            <p className='text-lg font-semibold text-gray-900'>₩10,000</p>
-            <p className='text-sm text-success-600'>+8.5%</p>
+          <div className='p-4 bg-gray-50/80 rounded-xl border border-gray-200/60'>
+            <p className='text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+              Total Revenue
+            </p>
+            <p className='text-lg font-semibold text-gray-900 mt-0.5'>
+              ₦10,000
+            </p>
+            <p className='text-sm font-medium text-success-600 mt-0.5'>+8.5%</p>
           </div>
-          <div className='p-3 bg-gray-50 rounded-lg'>
-            <p className='text-xs font-medium text-gray-500 uppercase'>Total Expenses</p>
-            <p className='text-lg font-semibold text-gray-900'>₩10,000</p>
-            <p className='text-sm text-success-600'>+8.5%</p>
+          <div className='p-4 bg-gray-50/80 rounded-xl border border-gray-200/60'>
+            <p className='text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+              Total Expenses
+            </p>
+            <p className='text-lg font-semibold text-gray-900 mt-0.5'>
+              ₦10,000
+            </p>
+            <p className='text-sm font-medium text-success-600 mt-0.5'>+8.5%</p>
           </div>
-          <div className='p-3 bg-gray-50 rounded-lg'>
-            <p className='text-xs font-medium text-gray-500 uppercase'>Total Invoice</p>
-            <p className='text-lg font-semibold text-gray-900'>₩10,000</p>
-            <p className='text-sm text-success-600'>+8.5%</p>
+          <div className='p-4 bg-gray-50/80 rounded-xl border border-gray-200/60'>
+            <p className='text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+              Total Invoice
+            </p>
+            <p className='text-lg font-semibold text-gray-900 mt-0.5'>
+              ₦10,000
+            </p>
+            <p className='text-sm font-medium text-success-600 mt-0.5'>+8.5%</p>
           </div>
         </div>
         <div className='h-56 sm:h-64 min-w-0'>
           <ResponsiveContainer width='100%' height='100%'>
-            <BarChart data={BAR_DATA} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray='3 3' className='stroke-gray-200' />
+            <BarChart
+              data={BAR_DATA}
+              margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+              barCategoryGap='12%'
+            >
+              <CartesianGrid
+                strokeDasharray='3 3'
+                className='stroke-gray-200'
+              />
               <XAxis dataKey='month' tick={{ fontSize: 12 }} stroke='#9ca3af' />
-              <YAxis tick={{ fontSize: 12 }} stroke='#9ca3af' tickFormatter={(v) => `$${v}k`} />
+              <YAxis
+                tick={{ fontSize: 12 }}
+                stroke='#9ca3af'
+                tickFormatter={v => `₦${v}k`}
+              />
               <Tooltip
-                formatter={(value: number | undefined) => (value != null ? [`$${value}k`, ''] : ['', ''])}
+                formatter={(value: number | undefined) =>
+                  value != null ? [`₦${value}k`, ''] : ['', '']
+                }
                 contentStyle={{ fontSize: 12 }}
               />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey='revenue' name='Revenue' fill='#073E60' radius={[2, 2, 0, 0]} />
-              <Bar dataKey='expenses' name='Expenses' fill='#f87171' radius={[2, 2, 0, 0]} />
-              <Bar dataKey='invoice' name='Invoice' fill='#22c55e' radius={[2, 2, 0, 0]} />
+              {/* Order here sets bar order left-to-right: Revenue (green), Expenses (red), Invoice (blue) */}
+              <Bar
+                dataKey='revenue'
+                name='Revenue'
+                fill='#16a34a'
+                radius={[2, 2, 0, 0]}
+              />
+              <Bar
+                dataKey='expenses'
+                name='Expenses'
+                fill='#ef4444'
+                radius={[2, 2, 0, 0]}
+              />
+              <Bar
+                dataKey='invoice'
+                name='Invoice'
+                fill='#073E60'
+                radius={[2, 2, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+        <div className='flex flex-wrap items-center justify-center gap-6 pt-3 border-t border-gray-100'>
+          <span className='flex items-center gap-2 text-sm text-gray-700'>
+            <span
+              className='w-3 h-3 rounded-full bg-green-600 shrink-0'
+              aria-hidden
+            />
+            Revenue
+          </span>
+          <span className='flex items-center gap-2 text-sm text-gray-700'>
+            <span
+              className='w-3 h-3 rounded-full bg-red-500 shrink-0'
+              aria-hidden
+            />
+            Expenses
+          </span>
+          <span className='flex items-center gap-2 text-sm text-gray-700'>
+            <span
+              className='w-3 h-3 rounded-full bg-[#073E60] shrink-0'
+              aria-hidden
+            />
+            Invoice
+          </span>
         </div>
       </div>
 
       {/* Three donut sections */}
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6'>
-        <div className='card'>
-          <div className='flex flex-wrap items-center justify-between gap-2 mb-4'>
-            <h2 className='text-lg font-semibold text-gray-900'>Paid vs Unpaid</h2>
-            <select className='input-field w-auto py-1.5 text-sm' defaultValue='last-6'>
+        <div className='card card-hover'>
+          <div className='flex flex-nowrap items-center justify-between gap-2 mb-4 min-w-0'>
+            <h2 className='text-lg font-semibold text-gray-900 min-w-0 truncate'>
+              Paid vs Unpaid
+            </h2>
+            <select
+              className='input-field py-1.5 text-sm w-28 shrink-0'
+              defaultValue='last-6'
+            >
               <option value='last-6'>Last 6 months</option>
             </select>
           </div>
-          <p className='text-2xl font-semibold text-gray-900 mb-1'>₩280,932</p>
+          <p className='text-2xl font-semibold text-gray-900 mb-1'>₦280,932</p>
           <p className='text-sm text-gray-500 mb-4'>Total Invoices</p>
           <div className='flex flex-col items-center'>
             <ResponsiveContainer width='100%' height={200}>
@@ -322,11 +414,15 @@ const Dashboard: React.FC = () => {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number | undefined) => (value != null ? [`${value}%`, ''] : ['', ''])} />
+                <Tooltip
+                  formatter={(value: number | undefined) =>
+                    value != null ? [`${value}%`, ''] : ['', '']
+                  }
+                />
               </PieChart>
             </ResponsiveContainer>
             <div className='flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-gray-600'>
-              {PAID_UNPAID_DATA.map((d) => (
+              {PAID_UNPAID_DATA.map(d => (
                 <span key={d.name} className='flex items-center gap-1.5'>
                   <span
                     className='w-2.5 h-2.5 rounded-full shrink-0'
@@ -340,14 +436,19 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className='card'>
-          <div className='flex flex-wrap items-center justify-between gap-2 mb-4'>
-            <h2 className='text-lg font-semibold text-gray-900'>Revenue by category</h2>
-            <select className='input-field w-auto py-1.5 text-sm' defaultValue='last-6'>
+        <div className='card card-hover'>
+          <div className='flex flex-nowrap items-center justify-between gap-2 mb-4 min-w-0'>
+            <h2 className='text-lg font-semibold text-gray-900 min-w-0 truncate'>
+              Revenue by category
+            </h2>
+            <select
+              className='input-field py-1.5 text-sm w-28 shrink-0'
+              defaultValue='last-6'
+            >
               <option value='last-6'>Last 6 months</option>
             </select>
           </div>
-          <p className='text-2xl font-semibold text-gray-900 mb-1'>₩180,932</p>
+          <p className='text-2xl font-semibold text-gray-900 mb-1'>₦180,932</p>
           <p className='text-sm text-gray-500 mb-4'>Total Revenue</p>
           <div className='flex flex-col items-center'>
             <ResponsiveContainer width='100%' height={200}>
@@ -365,11 +466,15 @@ const Dashboard: React.FC = () => {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number | undefined) => (value != null ? [`${value}%`, ''] : ['', ''])} />
+                <Tooltip
+                  formatter={(value: number | undefined) =>
+                    value != null ? [`${value}%`, ''] : ['', '']
+                  }
+                />
               </PieChart>
             </ResponsiveContainer>
             <div className='flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm text-gray-600'>
-              {REVENUE_BY_CATEGORY.map((d) => (
+              {REVENUE_BY_CATEGORY.map(d => (
                 <span key={d.name} className='flex items-center gap-1.5'>
                   <span
                     className='w-2.5 h-2.5 rounded-full shrink-0'
@@ -383,14 +488,19 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className='card'>
-          <div className='flex flex-wrap items-center justify-between gap-2 mb-4'>
-            <h2 className='text-lg font-semibold text-gray-900'>Expenses by category</h2>
-            <select className='input-field w-auto py-1.5 text-sm' defaultValue='last-6'>
+        <div className='card card-hover'>
+          <div className='flex flex-nowrap items-center justify-between gap-2 mb-4 min-w-0'>
+            <h2 className='text-lg font-semibold text-gray-900 min-w-0 truncate'>
+              Expenses by category
+            </h2>
+            <select
+              className='input-field py-1.5 text-sm w-28 shrink-0'
+              defaultValue='last-6'
+            >
               <option value='last-6'>Last 6 months</option>
             </select>
           </div>
-          <p className='text-2xl font-semibold text-gray-900 mb-1'>₩80,932</p>
+          <p className='text-2xl font-semibold text-gray-900 mb-1'>₦80,932</p>
           <p className='text-sm text-gray-500 mb-4'>Total Expense</p>
           <div className='flex flex-col items-center'>
             <ResponsiveContainer width='100%' height={200}>
@@ -408,11 +518,15 @@ const Dashboard: React.FC = () => {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number | undefined) => (value != null ? [`${value}%`, ''] : ['', ''])} />
+                <Tooltip
+                  formatter={(value: number | undefined) =>
+                    value != null ? [`${value}%`, ''] : ['', '']
+                  }
+                />
               </PieChart>
             </ResponsiveContainer>
             <div className='flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm text-gray-600'>
-              {EXPENSES_BY_CATEGORY.map((d) => (
+              {EXPENSES_BY_CATEGORY.map(d => (
                 <span key={d.name} className='flex items-center gap-1.5'>
                   <span
                     className='w-2.5 h-2.5 rounded-full shrink-0'
@@ -428,15 +542,20 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Recent invoice */}
-      <div className='card'>
+      <div className='card card-hover'>
         <div className='flex flex-wrap items-center justify-between gap-4 mb-4'>
-          <h2 className='text-lg font-semibold text-gray-900'>Recent invoice</h2>
-          <Link to='/sales/invoice' className='text-sm font-medium text-[#073E60] hover:underline'>
+          <h2 className='text-lg font-semibold text-gray-900'>
+            Recent invoice
+          </h2>
+          <Link
+            to='/sales/invoice'
+            className='text-sm font-medium text-[#073E60] hover:underline'
+          >
             Go to invoice &gt;
           </Link>
         </div>
         <div className='flex flex-wrap gap-2 mb-4 border-b border-gray-200'>
-          {INVOICE_TABS.map((tab) => (
+          {INVOICE_TABS.map(tab => (
             <button
               key={tab}
               type='button'
@@ -465,30 +584,36 @@ const Dashboard: React.FC = () => {
           <table className='w-full min-w-[700px] text-sm' role='grid'>
             <thead>
               <tr className='border-b border-gray-200 text-left text-gray-500 font-medium'>
-                <th className='py-3 pr-4'>Invoice Number</th>
+                <th className='py-3 pr-4'>Invoice ID</th>
                 <th className='py-3 pr-4'>Amount</th>
                 <th className='py-3 pr-4'>Payment Received</th>
                 <th className='py-3 pr-4'>Created</th>
-                <th className='py-3 pr-4'>Student</th>
+                <th className='py-3 pr-4'>Customer</th>
                 <th className='py-3 pr-4'>Status</th>
                 <th className='py-3 w-8' aria-label='Actions' />
               </tr>
             </thead>
             <tbody>
-              {INVOICE_ROWS.map((row) => (
+              {INVOICE_ROWS.map(row => (
                 <tr
                   key={row.id}
                   className='border-b border-gray-100 hover:bg-gray-50/50 transition-colors'
                 >
-                  <td className='py-3 pr-4 font-medium text-gray-900'>{row.invoiceNumber}</td>
+                  <td className='py-3 pr-4 font-medium text-gray-900'>
+                    {row.id}
+                  </td>
                   <td className='py-3 pr-4 text-gray-700'>{row.amount}</td>
-                  <td className='py-3 pr-4 text-gray-700'>{row.paymentReceived}</td>
+                  <td className='py-3 pr-4 text-gray-700'>
+                    {row.paymentReceived}
+                  </td>
                   <td className='py-3 pr-4 text-gray-700'>
                     <span className='block'>{row.created}</span>
                     <span className='text-xs text-gray-500'>{row.due}</span>
                   </td>
                   <td className='py-3 pr-4 text-gray-700'>
-                    <span className='block font-medium text-gray-900'>{row.student}</span>
+                    <span className='block font-medium text-gray-900'>
+                      {row.customer}
+                    </span>
                     <span className='text-xs text-gray-500'>{row.email}</span>
                   </td>
                   <td className='py-3 pr-4'>

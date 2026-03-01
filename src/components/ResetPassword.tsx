@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
+import { useNotification } from '@/contexts/NotificationContext';
 import logo from '@/assets/logo.svg';
 import errorIcon from '@/assets/error-icon.svg';
 
 function validatePassword(password: string): string | null {
   if (password.length < 8) return 'Password must be at least 8 characters';
-  if (!/[A-Z]/.test(password)) return 'Password must contain at least 1 uppercase letter';
+  if (!/[A-Z]/.test(password))
+    return 'Password must contain at least 1 uppercase letter';
   if (!/[0-9]/.test(password)) return 'Password must contain at least 1 number';
   return null;
 }
@@ -15,6 +17,7 @@ function validatePassword(password: string): string | null {
 const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { notify } = useNotification();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -36,6 +39,7 @@ const ResetPassword: React.FC = () => {
     setConfirmError(cErr);
     if (pErr || cErr) return;
 
+    notify({ variant: 'success', message: 'Password reset successfully.' });
     navigate('/login', { replace: true });
   };
 
@@ -43,7 +47,7 @@ const ResetPassword: React.FC = () => {
     <AuthLayout>
       <div className='w-full max-w-md space-y-8'>
         <div className='flex justify-center'>
-          <img src={logo} alt='TeddyEd' className='w-16 h-16' />
+          <img src={logo} alt='Asture FMS' className='w-16 h-16' />
         </div>
         <div className='text-center space-y-2'>
           <h1 className='text-2xl font-semibold text-gray-900 tracking-tight'>
@@ -66,7 +70,7 @@ const ResetPassword: React.FC = () => {
                 id='password'
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => {
+                onChange={e => {
                   setPassword(e.target.value);
                   setPasswordError(validatePassword(e.target.value) ?? '');
                 }}
@@ -81,7 +85,11 @@ const ResetPassword: React.FC = () => {
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? <EyeOff className='h-5 w-5' /> : <Eye className='h-5 w-5' />}
+                {showPassword ? (
+                  <EyeOff className='h-5 w-5' />
+                ) : (
+                  <Eye className='h-5 w-5' />
+                )}
               </button>
             </div>
             {passwordError && (
@@ -92,7 +100,10 @@ const ResetPassword: React.FC = () => {
             )}
           </div>
           <div className='space-y-2'>
-            <label htmlFor='confirmPassword' className='form-label text-gray-900'>
+            <label
+              htmlFor='confirmPassword'
+              className='form-label text-gray-900'
+            >
               Confirm password *
             </label>
             <div className='relative'>
@@ -101,10 +112,12 @@ const ResetPassword: React.FC = () => {
                 id='confirmPassword'
                 type={showConfirm ? 'text' : 'password'}
                 value={confirmPassword}
-                onChange={(e) => {
+                onChange={e => {
                   setConfirmPassword(e.target.value);
                   setConfirmError(
-                    e.target.value && e.target.value !== password ? 'Passwords do not match' : ''
+                    e.target.value && e.target.value !== password
+                      ? 'Passwords do not match'
+                      : ''
                   );
                 }}
                 className={`input-field pl-10 pr-12 py-3.5 rounded-xl border ${
@@ -118,7 +131,11 @@ const ResetPassword: React.FC = () => {
                 onClick={() => setShowConfirm(!showConfirm)}
                 aria-label={showConfirm ? 'Hide password' : 'Show password'}
               >
-                {showConfirm ? <EyeOff className='h-5 w-5' /> : <Eye className='h-5 w-5' />}
+                {showConfirm ? (
+                  <EyeOff className='h-5 w-5' />
+                ) : (
+                  <Eye className='h-5 w-5' />
+                )}
               </button>
             </div>
             {confirmError && (
@@ -136,7 +153,10 @@ const ResetPassword: React.FC = () => {
           </button>
         </form>
         <p className='text-center text-sm text-gray-500'>
-          <Link to='/login' className='font-medium text-[#073E60] underline hover:text-[#052d47]'>
+          <Link
+            to='/login'
+            className='font-medium text-[#073E60] underline hover:text-[#052d47]'
+          >
             Back to login
           </Link>
         </p>

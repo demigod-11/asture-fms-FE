@@ -1,48 +1,86 @@
-import React, { useState } from 'react';
-import { Search, Upload, Plus, MoreHorizontal, Clock } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Calendar, Clock } from 'lucide-react';
+import SelectableDataTable from '@/components/SelectableDataTable';
+import ListPageToolbar from '@/components/ListPageToolbar';
+import PaginationFooter from '@/components/PaginationFooter';
+import ListPageRowActions from '@/components/ListPageRowActions';
 
-type InvoiceStatus = 'Paid' | 'Overdue' | 'Pending' | 'Partially Paid' | 'Draft';
+type InvoiceStatus =
+  | 'Paid'
+  | 'Overdue'
+  | 'Pending'
+  | 'Partially Paid'
+  | 'Draft';
 
-const INVOICE_TABS = ['All Invoice', 'Draft', 'Outstanding', 'Overdue', 'Paid'];
+interface InvoiceRow {
+  id: string;
+  invoiceNumber: string;
+  amount: number;
+  created: string;
+  due: string;
+  customerName: string;
+  email: string;
+  status: InvoiceStatus;
+}
 
-const SAMPLE_ROWS = [
+const SAMPLE_ROWS: InvoiceRow[] = [
   {
-    id: '1',
+    id: 'INV-0001',
     invoiceNumber: 'INV-2023-001',
-    amount: '$1200.00',
-    paymentReceived: '$0',
+    amount: 120000,
     created: 'Mar 20, 2025 4:59 PM',
     due: 'Due Mar 28, 2025',
-    student: 'Michael Brown',
+    customerName: 'Michael Brown',
     email: 'guardianemailaddress@hotmail.com',
-    status: 'Pending' as InvoiceStatus,
+    status: 'Pending',
   },
   {
-    id: '2',
+    id: 'INV-0002',
     invoiceNumber: 'INV-2023-002',
-    amount: '$1200.00',
-    paymentReceived: '$0',
+    amount: 120000,
     created: 'Mar 20, 2025 4:59 PM',
     due: 'Due Mar 28, 2025',
-    student: 'Michael Brown',
+    customerName: 'Michael Brown',
     email: 'guardianemailaddress@hotmail.com',
-    status: 'Overdue' as InvoiceStatus,
+    status: 'Overdue',
   },
   {
-    id: '3',
+    id: 'INV-0003',
     invoiceNumber: 'INV-2023-003',
-    amount: '$1200.00',
-    paymentReceived: '$1200.00',
+    amount: 120000,
     created: 'Mar 18, 2025 2:30 PM',
     due: 'Due Mar 25, 2025',
-    student: 'Jane Smith',
+    customerName: 'Jane Smith',
     email: 'jane.smith@example.com',
-    status: 'Paid' as InvoiceStatus,
+    status: 'Paid',
+  },
+  {
+    id: 'INV-0004',
+    invoiceNumber: 'INV-2023-004',
+    amount: 85000,
+    created: 'Mar 15, 2025 10:00 AM',
+    due: 'Due Mar 22, 2025',
+    customerName: 'Chidi Okeke',
+    email: 'chidi@example.com',
+    status: 'Partially Paid',
+  },
+  {
+    id: 'INV-0005',
+    invoiceNumber: 'INV-2023-005',
+    amount: 200000,
+    created: 'Mar 10, 2025 3:45 PM',
+    due: 'Due Mar 17, 2025',
+    customerName: 'Amara Nwosu',
+    email: 'amara@example.com',
+    status: 'Paid',
   },
 ];
 
+function formatAmount(n: number): string {
+  return `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function StatusBadge({ status }: { status: InvoiceStatus }) {
-  const base = 'badge inline-flex items-center gap-1';
   const map: Record<InvoiceStatus, string> = {
     Paid: 'badge-success',
     Overdue: 'badge-error',
@@ -51,126 +89,112 @@ function StatusBadge({ status }: { status: InvoiceStatus }) {
     Draft: 'bg-gray-100 text-gray-700',
   };
   return (
-    <span className={`${base} ${map[status]}`}>
+    <span className={`badge inline-flex items-center gap-1 ${map[status]}`}>
       {status === 'Pending' && <Clock className='h-3 w-3 shrink-0' />}
       {status}
     </span>
   );
 }
 
+const INVOICE_COLUMNS = [
+  { id: 'id', header: 'ID' as const, cell: (row: InvoiceRow) => row.id },
+  {
+    id: 'customer',
+    header: 'Customer' as const,
+    cell: (row: InvoiceRow) => (
+      <>
+        <span className='block'>{row.customerName}</span>
+        <a
+          href={`mailto:${row.email}`}
+          className='text-xs text-[#073E60] hover:underline'
+        >
+          {row.email}
+        </a>
+      </>
+    ),
+  },
+  {
+    id: 'amount',
+    header: 'Amount' as const,
+    cell: (row: InvoiceRow) => formatAmount(row.amount),
+  },
+  {
+    id: 'created',
+    header: 'Created' as const,
+    cell: (row: InvoiceRow) => (
+      <>
+        <span className='block'>{row.created}</span>
+        <span className='text-xs text-gray-500'>{row.due}</span>
+      </>
+    ),
+  },
+  {
+    id: 'status',
+    header: 'Status' as const,
+    cell: (row: InvoiceRow) => <StatusBadge status={row.status} />,
+  },
+];
+
 const Invoices: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('Outstanding');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const totalPages = 6;
+  const [sortKey, setSortKey] = useState<string>('');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const sortedData = useMemo(() => {
+    if (!sortKey) return SAMPLE_ROWS;
+    return [...SAMPLE_ROWS].sort((a, b) => {
+      const aVal = (a as unknown as Record<string, unknown>)[sortKey];
+      const bVal = (b as unknown as Record<string, unknown>)[sortKey];
+      const cmp =
+        typeof aVal === 'number' && typeof bVal === 'number'
+          ? aVal - bVal
+          : String(aVal ?? '').localeCompare(String(bVal ?? ''), undefined, {
+              numeric: true,
+            });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [sortKey, sortDir]);
 
   return (
-    <div className='space-y-4 sm:space-y-6'>
-      <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
-        <h1 className='text-2xl font-bold text-gray-900'>Invoices</h1>
-        <div className='flex flex-wrap items-center gap-2'>
+    <div className='space-y-4'>
+      <ListPageToolbar
+        searchValue={search}
+        onSearchChange={setSearch}
+        filterLabel='All invoices'
+        rightSlot={
           <button
             type='button'
-            className='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-[#073E60] hover:bg-gray-50 transition-colors'
+            className='btn-secondary inline-flex items-center gap-2'
           >
-            <Upload className='h-4 w-4' />
-            Export
+            <Calendar className='h-4 w-4' /> Last 90 days
           </button>
-          <button
-            type='button'
-            className='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-[#073E60] hover:bg-gray-50 transition-colors'
-          >
-            <Plus className='h-4 w-4' />
-            New invoice
-          </button>
-        </div>
-      </div>
-
-      <div className='card p-0 overflow-hidden'>
-        <div className='flex flex-wrap gap-2 p-4 border-b border-gray-200'>
-          {INVOICE_TABS.map((tab) => (
-            <button
-              key={tab}
-              type='button'
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${
-                tab === activeTab
-                  ? 'bg-gray-200 text-gray-900'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        <div className='p-4 border-b border-gray-200'>
-          <div className='relative max-w-xs'>
-            <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
-            <input
-              type='search'
-              placeholder='Search...'
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className='input-field pl-9 py-2 text-sm'
-            />
-          </div>
-        </div>
-
-        <div className='overflow-x-auto'>
-          <table className='w-full min-w-[700px] text-sm' role='grid'>
-            <thead>
-              <tr className='bg-gray-50 text-left text-gray-600 font-medium'>
-                <th className='py-3 px-4'>Invoice Number</th>
-                <th className='py-3 px-4'>Amount</th>
-                <th className='py-3 px-4'>Payment Received</th>
-                <th className='py-3 px-4'>Created</th>
-                <th className='py-3 px-4'>Student</th>
-                <th className='py-3 px-4'>Status</th>
-                <th className='py-3 w-10' aria-label='Actions' />
-              </tr>
-            </thead>
-            <tbody>
-              {SAMPLE_ROWS.map((row) => (
-                <tr
-                  key={row.id}
-                  className='border-b border-gray-100 hover:bg-gray-50/50 transition-colors'
-                >
-                  <td className='py-3 px-4 font-medium text-gray-900'>{row.invoiceNumber}</td>
-                  <td className='py-3 px-4 text-gray-700'>{row.amount}</td>
-                  <td className='py-3 px-4 text-gray-700'>{row.paymentReceived}</td>
-                  <td className='py-3 px-4 text-gray-700'>
-                    <span className='block'>{row.created}</span>
-                    <span className='text-xs text-gray-500 flex items-center gap-1'>
-                      <span aria-hidden>↳</span>
-                      {row.due}
-                    </span>
-                  </td>
-                  <td className='py-3 px-4'>
-                    <span className='block font-medium text-gray-900'>{row.student}</span>
-                    <a
-                      href={`mailto:${row.email}`}
-                      className='text-xs text-[#073E60] hover:underline'
-                    >
-                      {row.email}
-                    </a>
-                  </td>
-                  <td className='py-3 px-4'>
-                    <StatusBadge status={row.status} />
-                  </td>
-                  <td className='py-3 px-4'>
-                    <button
-                      type='button'
-                      className='p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded'
-                      aria-label='More options'
-                    >
-                      <MoreHorizontal className='h-4 w-4' />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        }
+        primaryLabel='Create invoice'
+        primaryTo='/sales/invoice/new'
+      />
+      <SelectableDataTable<InvoiceRow>
+        data={sortedData}
+        getRowId={row => row.id}
+        columns={INVOICE_COLUMNS}
+        selectionLabel='invoices'
+        tableMinWidth='640px'
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={(key, dir) => {
+          setSortKey(key);
+          setSortDir(dir);
+        }}
+        renderRowActions={() => <ListPageRowActions />}
+        footer={
+          <PaginationFooter
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        }
+      />
     </div>
   );
 };

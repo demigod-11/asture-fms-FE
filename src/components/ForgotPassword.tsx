@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
 import logo from '@/assets/logo.svg';
 import errorIcon from '@/assets/error-icon.svg';
 
 const ForgotPassword: React.FC = () => {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -26,38 +25,26 @@ const ForgotPassword: React.FC = () => {
     setSubmitted(true);
   };
 
-  const goToResetPassword = () => {
-    navigate('/reset-password', { state: { email } });
-  };
-
   if (submitted) {
     return (
       <AuthLayout>
         <div className='w-full max-w-md space-y-8 text-center'>
           <div className='flex justify-center'>
-            <img src={logo} alt='TeddyEd' className='w-16 h-16' />
+            <img src={logo} alt='Asture FMS' className='w-16 h-16' />
           </div>
-          <h1 className='text-2xl font-semibold text-gray-900'>
+          <h1 className='text-2xl font-semibold text-gray-900 tracking-tight'>
             Check your email
           </h1>
           <p className='text-sm text-gray-500'>
-            We sent a password reset link to <strong>{email}</strong>. Click the link in the email to reset your password, or continue below to set a new password.
+            We&apos;ve sent a password reset link to <strong>{email}</strong>.
+            Click the link in the email to set a new password.
           </p>
-          <div className='flex flex-col sm:flex-row gap-3 justify-center'>
-            <button
-              type='button'
-              onClick={goToResetPassword}
-              className='btn-primary'
-            >
-              Continue to reset password
-            </button>
-            <Link
-              to='/login'
-              className='inline-block text-center text-sm font-medium text-[#073E60] underline hover:text-[#052d47]'
-            >
-              Back to login
-            </Link>
-          </div>
+          <Link
+            to='/login'
+            className='inline-block text-center text-sm font-medium text-[#073E60] underline hover:text-[#052d47]'
+          >
+            Back to sign in
+          </Link>
         </div>
       </AuthLayout>
     );
@@ -67,14 +54,15 @@ const ForgotPassword: React.FC = () => {
     <AuthLayout>
       <div className='w-full max-w-md space-y-8'>
         <div className='flex justify-center'>
-          <img src={logo} alt='TeddyEd' className='w-16 h-16' />
+          <img src={logo} alt='Asture FMS' className='w-16 h-16' />
         </div>
         <div className='text-center space-y-2'>
           <h1 className='text-2xl font-semibold text-gray-900 tracking-tight'>
             Forgot password?
           </h1>
           <p className='text-sm text-gray-500'>
-            Enter your email and we&apos;ll send you a link to reset your password.
+            Enter your email and we&apos;ll send you a link to reset your
+            password.
           </p>
         </div>
         <form onSubmit={handleSubmit} className='space-y-5'>
@@ -88,7 +76,7 @@ const ForgotPassword: React.FC = () => {
                 id='email'
                 type='email'
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 className={`input-field pl-10 py-3.5 rounded-xl border ${
                   error ? 'border-error-300' : 'border-gray-200'
                 }`}
@@ -110,7 +98,10 @@ const ForgotPassword: React.FC = () => {
           </button>
         </form>
         <p className='text-center text-sm text-gray-500'>
-          <Link to='/login' className='font-medium text-[#073E60] underline hover:text-[#052d47]'>
+          <Link
+            to='/login'
+            className='font-medium text-[#073E60] underline hover:text-[#052d47]'
+          >
             Back to login
           </Link>
         </p>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -9,20 +9,24 @@ import {
   Settings,
   Users,
   Cog,
-  Trash2,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Search,
   Bell,
-  MessageCircle,
-  Plus,
+  HelpCircle,
   LogOut,
   Menu,
   X,
   FileSpreadsheet,
   UserCircle,
+  Package,
+  Briefcase,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import NotificationsPanel, {
+  type NotificationItem,
+} from '@/components/NotificationsPanel';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -31,242 +35,562 @@ interface DashboardLayoutProps {
 const salesLedgerChildren = [
   { label: 'Invoice', path: '/sales/invoice', icon: FileSpreadsheet },
   { label: 'Customers', path: '/sales/customers', icon: UserCircle },
+  { label: 'Products', path: '/sales/products', icon: Package },
+];
+
+const purchaseLedgerChildren = [
+  { label: 'Bills', path: '/purchase/bills', icon: FileSpreadsheet },
+  { label: 'Vendor', path: '/purchase/vendor', icon: UserCircle },
+  { label: 'Expense', path: '/purchase/expense', icon: Receipt },
+];
+
+const reportsChildren = [
+  { label: 'Profit & loss', path: '/reports/profit-loss', icon: FileText },
+  { label: 'Balance sheet', path: '/reports/balance-sheet', icon: FileText },
+  { label: 'A/R aging summary', path: '/reports/ar-aging', icon: FileText },
+  { label: 'A/P aging summary', path: '/reports/ap-aging', icon: FileText },
 ];
 
 const mainNav = [
   { label: 'Overview', path: '/', icon: LayoutDashboard },
-  { label: 'Sales ledger', path: '/sales', icon: BookOpen, hasDropdown: true, children: salesLedgerChildren },
-  { label: 'Purchase ledger', path: '/purchase', icon: ShoppingCart, hasDropdown: true },
-  { label: 'Reports', path: '/reports', icon: FileText, hasDropdown: true },
+  {
+    label: 'Sales ledger',
+    path: '/sales',
+    icon: BookOpen,
+    hasDropdown: true,
+    children: salesLedgerChildren,
+  },
+  {
+    label: 'Purchase ledger',
+    path: '/purchase',
+    icon: ShoppingCart,
+    hasDropdown: true,
+    children: purchaseLedgerChildren,
+  },
+  {
+    label: 'Reports',
+    path: '/reports',
+    icon: FileText,
+    hasDropdown: true,
+    children: reportsChildren,
+  },
   { label: 'Transactions', path: '/transactions', icon: Receipt },
-  { label: 'Configuration', path: '/configuration', icon: Settings },
 ];
 
 const managementNav = [
   { label: 'Users', path: '/users', icon: Users },
   { label: 'Integration', path: '/integration', icon: Cog },
   { label: 'Settings', path: '/settings', icon: Settings },
-  { label: 'Trash', path: '/trash', icon: Trash2 },
 ];
 
 const NavContent: React.FC<{
   location: ReturnType<typeof useLocation>;
   onNavClick?: () => void;
-  salesLedgerExpanded: boolean;
-  onSalesLedgerToggle: () => void;
-}> = ({ location, onNavClick, salesLedgerExpanded, onSalesLedgerToggle }) => {
-  const salesExpanded = salesLedgerExpanded || location.pathname.startsWith('/sales');
+  expandedSections: Record<string, boolean>;
+  onSectionToggle: (path: string) => void;
+}> = ({ location, onNavClick, expandedSections, onSectionToggle }) => {
   return (
     <>
-      <p className='px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-        Main
-      </p>
-      {mainNav.map((item) => {
-        const hasChildren = 'children' in item && item.children?.length;
-        const isParentActive = hasChildren && item.children?.some((c: { path: string }) => location.pathname === c.path);
-        const isActive = !hasChildren && (location.pathname === item.path || (item.path === '/' && location.pathname === '/home'));
-        const Icon = item.icon;
-        if (hasChildren && item.children?.length) {
-          return (
-            <div key={item.path}>
-              <button
-                type='button'
-                onClick={onSalesLedgerToggle}
-                className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
-                  isParentActive ? 'text-gray-900' : 'text-gray-700 hover:bg-gray-200/70'
+      <div className='flex flex-col gap-2'>
+        <p className='px-1 py-1 text-xs font-medium text-[#a3a3a3] uppercase tracking-wider'>
+          Main
+        </p>
+        <div className='flex flex-col gap-1'>
+          {mainNav.map(item => {
+            const hasChildren = 'children' in item && item.children?.length;
+            const isParentActive =
+              hasChildren &&
+              item.children?.some(
+                (c: { path: string }) => location.pathname === c.path
+              );
+            const isActive =
+              !hasChildren &&
+              (location.pathname === item.path ||
+                (item.path === '/' && location.pathname === '/home'));
+            const isExpanded =
+              hasChildren &&
+              (expandedSections[item.path] ??
+                location.pathname.startsWith(item.path));
+            const Icon = item.icon;
+            if (hasChildren && item.children?.length) {
+              return (
+                <div key={item.path}>
+                  <button
+                    type='button'
+                    onClick={() => onSectionToggle(item.path)}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${
+                      isParentActive
+                        ? 'text-primary-600 bg-primary-50/80'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className='flex items-center gap-2'>
+                      <Icon className='h-5 w-5 shrink-0 text-gray-500' />
+                      {item.label}
+                    </span>
+                    {isExpanded ? (
+                      <ChevronUp className='h-4 w-4 text-gray-400 shrink-0' />
+                    ) : (
+                      <ChevronDown className='h-4 w-4 text-gray-400 shrink-0' />
+                    )}
+                  </button>
+                  {isExpanded && (
+                    <div className='ml-4 mt-0.5 space-y-0.5 border-l-2 border-gray-200/80 pl-2.5'>
+                      {item.children.map(
+                        (child: {
+                          label: string;
+                          path: string;
+                          icon: React.ElementType;
+                        }) => {
+                          const ChildIcon = child.icon;
+                          const childActive = location.pathname === child.path;
+                          return (
+                            <Link
+                              key={child.path}
+                              to={child.path}
+                              onClick={onNavClick}
+                              className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                childActive
+                                  ? 'bg-primary-50/80 text-primary-700'
+                                  : 'text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              <ChildIcon className='h-4 w-4 shrink-0 text-gray-500' />
+                              {child.label}
+                            </Link>
+                          );
+                        }
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={onNavClick}
+                className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-primary-50/80 text-primary-700'
+                    : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 <span className='flex items-center gap-2'>
                   <Icon className='h-5 w-5 shrink-0 text-gray-500' />
                   {item.label}
                 </span>
-                {salesExpanded ? (
-                  <ChevronUp className='h-4 w-4 text-gray-400 shrink-0' />
-                ) : (
+                {item.hasDropdown && (
                   <ChevronDown className='h-4 w-4 text-gray-400 shrink-0' />
                 )}
-              </button>
-              {salesExpanded && (
-                <div className='ml-4 mt-0.5 space-y-0.5 border-l border-gray-200 pl-2'>
-                  {item.children.map((child: { label: string; path: string; icon: React.ElementType }) => {
-                    const ChildIcon = child.icon;
-                    const childActive = location.pathname === child.path;
-                    return (
-                      <Link
-                        key={child.path}
-                        to={child.path}
-                        onClick={onNavClick}
-                        className={`flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          childActive ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-200/70'
-                        }`}
-                      >
-                        <ChildIcon className='h-4 w-4 shrink-0 text-gray-500' />
-                        {child.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        }
-        return (
-          <Link
-            key={item.path}
-            to={item.path}
-            onClick={onNavClick}
-            className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              isActive ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/70'
-            }`}
-          >
-            <span className='flex items-center gap-2'>
-              <Icon className='h-5 w-5 shrink-0 text-gray-500' />
-              {item.label}
-            </span>
-            {item.hasDropdown && <ChevronDown className='h-4 w-4 text-gray-400 shrink-0' />}
-          </Link>
-        );
-      })}
-    <p className='px-3 py-2 pt-4 text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-      Management
-    </p>
-    {managementNav.map((item) => {
-      const Icon = item.icon;
-      return (
-        <Link
-          key={item.path}
-          to={item.path}
-          onClick={onNavClick}
-          className='flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200/70 transition-colors'
-        >
-          <Icon className='h-5 w-5 shrink-0 text-gray-500' />
-          {item.label}
-        </Link>
-      );
-    })}
-  </>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+      {/* Small space between Main and Management - per Figma */}
+      <div className='pt-12 pb-4'>
+        <p className='px-1 py-1 text-xs font-medium text-[#a3a3a3] uppercase tracking-wider'>
+          Management
+        </p>
+        <div className='flex flex-col gap-1'>
+          {managementNav.map(item => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={onNavClick}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-primary-50/80 text-primary-700'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Icon className='h-5 w-5 shrink-0 text-gray-500' />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 };
+
+const INITIAL_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: '1',
+    title: 'Invoice paid',
+    body: 'INV-2023-001 was paid by Michael Brown.',
+    read: false,
+    createdAt: '2 min ago',
+  },
+  {
+    id: '2',
+    title: 'New customer',
+    body: 'Jane Smith was added to your customers.',
+    read: false,
+    createdAt: '1 hour ago',
+  },
+  {
+    id: '3',
+    title: 'Bill overdue',
+    body: 'Bill #B-104 is overdue. Please follow up.',
+    read: true,
+    createdAt: 'Yesterday',
+  },
+  {
+    id: '4',
+    title: 'Report ready',
+    body: 'Your Profit & Loss report for Q1 is ready.',
+    read: true,
+    createdAt: 'Mar 15',
+  },
+  {
+    id: '5',
+    title: 'Payment received',
+    body: '₦45,000 received for INV-2023-002 from Chidi Okeke.',
+    read: false,
+    createdAt: '2 hours ago',
+  },
+  {
+    id: '6',
+    title: 'Expense approved',
+    body: 'Expense #EXP-089 has been approved for reimbursement.',
+    read: true,
+    createdAt: 'Mar 14',
+  },
+  {
+    id: '7',
+    title: 'Vendor invoice',
+    body: 'New bill from Acme Supplies for ₦120,000 is pending.',
+    read: false,
+    createdAt: 'Mar 14',
+  },
+  {
+    id: '8',
+    title: 'Balance sheet ready',
+    body: 'Your Balance sheet report for February is ready to view.',
+    read: true,
+    createdAt: 'Mar 13',
+  },
+  {
+    id: '9',
+    title: 'Customer reminder',
+    body: 'Reminder: Invoice INV-2023-005 is due in 3 days.',
+    read: false,
+    createdAt: 'Mar 12',
+  },
+  {
+    id: '10',
+    title: 'Subscription renewal',
+    body: 'Your Asture FMS subscription will renew on Apr 1, 2025.',
+    read: true,
+    createdAt: 'Mar 10',
+  },
+];
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [salesLedgerExpanded, setSalesLedgerExpanded] = useState(() => location.pathname.startsWith('/sales'));
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(
+    INITIAL_NOTIFICATIONS
+  );
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >(() => ({
+    '/sales': location.pathname.startsWith('/sales'),
+    '/purchase': location.pathname.startsWith('/purchase'),
+    '/reports': location.pathname.startsWith('/reports'),
+  }));
+
+  const onSectionToggle = (path: string) => {
+    setExpandedSections(prev => ({ ...prev, [path]: !prev[path] }));
+  };
 
   const handleLogout = () => {
+    setShowLogoutConfirm(false);
     logout();
     navigate('/login', { replace: true });
   };
 
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const handleMarkAsRead = (id: string) => {
+    setNotifications(prev =>
+      prev.map(n => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const handleMarkAsUnread = (id: string) => {
+    setNotifications(prev =>
+      prev.map(n => (n.id === id ? { ...n, read: false } : n))
+    );
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node))
+        setProfileOpen(false);
+    };
+    if (profileOpen) document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [profileOpen]);
+
   return (
-    <div className='min-h-screen bg-gray-50 flex'>
+    <div className='min-h-screen bg-gray-50/80 flex'>
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <button
           type='button'
           onClick={() => setSidebarOpen(false)}
-          className='fixed inset-0 z-20 bg-black/50 lg:hidden'
+          className='fixed inset-0 z-20 bg-black/40 backdrop-blur-sm lg:hidden transition-opacity'
           aria-label='Close menu'
         />
       )}
 
       {/* Sidebar - drawer on mobile, fixed on desktop */}
       <aside
-        className={`fixed top-0 left-0 z-30 h-full w-56 bg-gray-100 border-r border-gray-200 flex flex-col shrink-0 transition-transform duration-200 ease-out lg:relative lg:translate-x-0 ${
+        className={`fixed top-0 left-0 z-30 h-full w-[272px] bg-white border-r border-gray-200/90 flex flex-col shrink-0 transition-transform duration-200 ease-out lg:relative lg:translate-x-0 lg:shadow-sidebar ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className='flex items-center justify-between p-3 border-b border-gray-200 lg:hidden'>
+        <div className='flex items-center justify-between p-3 border-b border-gray-200/80 lg:hidden'>
           <span className='font-semibold text-gray-900'>Menu</span>
           <button
             type='button'
             onClick={() => setSidebarOpen(false)}
-            className='p-2 rounded-lg hover:bg-gray-200'
+            className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
             aria-label='Close menu'
           >
             <X className='h-5 w-5' />
           </button>
         </div>
-        <nav className='p-3 space-y-1 flex-1 overflow-y-auto'>
+        {/* Business name & email block */}
+        <div className='flex items-center gap-3 px-4 py-4 border-b border-gray-200/80 shrink-0 bg-gray-50/50'>
+          <div className='flex gap-2 items-center min-w-0 flex-1'>
+            <div className='flex items-center justify-center w-10 h-10 rounded-xl bg-primary-50 shrink-0'>
+              <Briefcase className='h-5 w-5 text-primary-600' />
+            </div>
+            <div className='flex flex-col justify-center min-w-0'>
+              <p className='text-sm font-medium text-gray-900 leading-5 truncate'>
+                Business name
+              </p>
+              <p className='text-xs text-gray-500 leading-4 truncate'>
+                email@example
+              </p>
+            </div>
+          </div>
+          <div className='flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 bg-white shrink-0 shadow-input'>
+            <ChevronDown className='h-3.5 w-3.5 text-gray-500' aria-hidden />
+          </div>
+        </div>
+        <nav className='p-4 flex-1 overflow-y-auto flex flex-col gap-2'>
           <NavContent
             location={location}
             onNavClick={() => setSidebarOpen(false)}
-            salesLedgerExpanded={salesLedgerExpanded}
-            onSalesLedgerToggle={() => setSalesLedgerExpanded((v) => !v)}
+            expandedSections={expandedSections}
+            onSectionToggle={onSectionToggle}
           />
         </nav>
       </aside>
 
       {/* Main content */}
       <div className='flex-1 flex flex-col min-w-0'>
-        {/* Header - responsive: on large screens icons at end */}
-        <header className='sticky top-0 z-10 bg-white border-b border-gray-200 px-3 py-3 sm:px-4 md:px-6 flex flex-wrap items-center gap-2 sm:gap-4'>
+        {/* Header */}
+        <header className='sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-200/80 px-4 py-3 sm:px-5 md:px-6 flex flex-wrap items-center gap-2 sm:gap-4 shadow-header'>
           <button
             type='button'
             onClick={() => setSidebarOpen(true)}
-            className='p-2 text-gray-500 hover:bg-gray-100 rounded-md lg:hidden'
+            className='p-2 text-gray-500 hover:bg-gray-100 rounded-xl lg:hidden transition-colors'
             aria-label='Open menu'
           >
             <Menu className='h-5 w-5' />
           </button>
-          <div className='flex items-center gap-1.5 sm:gap-2 shrink-0 min-w-0'>
-            <span className='text-sm font-semibold text-gray-900 truncate'>Business name</span>
-            <span className='text-xs text-gray-500 truncate hidden sm:inline'>email@example</span>
-            <ChevronDown className='h-4 w-4 text-gray-400 shrink-0 hidden sm:block' aria-hidden />
-          </div>
-          <div className='flex-1 min-w-0 w-full sm:w-auto sm:max-w-xs md:max-w-md order-last sm:order-none lg:flex-none lg:max-w-sm'>
+          <div className='flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none sm:max-w-md md:max-w-lg lg:max-w-xl'>
             <div className='relative'>
-              <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
+              <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none' />
               <input
                 type='search'
                 placeholder='Search...'
-                className='input-field pl-9 py-2 text-sm w-full'
+                className='input-field pl-9 py-2.5 text-sm w-full bg-gray-50/80 border-gray-200/90'
               />
             </div>
           </div>
           <div className='hidden lg:block flex-1 min-w-0' aria-hidden />
-          <div className='flex items-center gap-0 sm:gap-2'>
+          <div className='flex items-center gap-1 sm:gap-2'>
             <button
               type='button'
-              title='Notifications'
-              className='p-2 text-[#073E60] hover:bg-primary-50 rounded-md transition-colors'
-              aria-label='Notifications'
+              onClick={() => setShowNotificationsPanel(true)}
+              className='relative p-2.5 text-primary-600 hover:bg-primary-50 rounded-xl transition-colors'
+              aria-label={
+                unreadCount > 0
+                  ? `${unreadCount} unread notifications`
+                  : 'Notifications'
+              }
             >
               <Bell className='h-5 w-5' />
+              {unreadCount > 0 && (
+                <span className='absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-semibold text-white bg-red-500 rounded-full'>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </button>
             <button
               type='button'
-              title='Messages'
-              className='p-2 text-[#073E60] hover:bg-primary-50 rounded-md hidden sm:block transition-colors'
-              aria-label='Messages'
+              className='p-2.5 text-primary-600 hover:bg-primary-50 rounded-xl transition-colors'
+              aria-label='Knowledge base'
             >
-              <MessageCircle className='h-5 w-5' />
+              <HelpCircle className='h-5 w-5' />
             </button>
-            <button
-              type='button'
-              title='Create'
-              className='btn-primary hidden sm:flex items-center gap-1.5 text-sm'
-              aria-label='Create'
-            >
-              <Plus className='h-4 w-4' />
-              <span className='hidden md:inline'>Create</span>
-            </button>
-            <button
-              type='button'
-              onClick={handleLogout}
-              title='Log out'
-              className='p-2 text-[#073E60] hover:bg-primary-50 rounded-md transition-colors'
-              aria-label='Log out'
-            >
-              <LogOut className='h-5 w-5' />
-            </button>
+            <div className='relative' ref={profileRef}>
+              <button
+                type='button'
+                onClick={() => setProfileOpen(v => !v)}
+                className='flex shrink-0 rounded-full overflow-hidden ring-2 ring-transparent hover:ring-primary-200 transition-shadow'
+                aria-label='Profile'
+                aria-expanded={profileOpen}
+              >
+                <img
+                  src='https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&crop=face'
+                  alt=''
+                  className='w-9 h-9 object-cover'
+                  width={36}
+                  height={36}
+                />
+              </button>
+              {profileOpen && (
+                <div className='absolute right-0 top-full mt-2 w-72 py-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50'>
+                  <div className='flex gap-3 px-4 py-3'>
+                    <img
+                      src='https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&crop=face'
+                      alt=''
+                      className='w-12 h-12 rounded-full object-cover shrink-0'
+                    />
+                    <div className='min-w-0'>
+                      <p className='font-semibold text-gray-900 truncate'>
+                        Amara Okonkwo
+                      </p>
+                      <p className='text-sm text-gray-500 truncate'>
+                        amara.okonkwo@company.com
+                      </p>
+                    </div>
+                  </div>
+                  <div className='border-t border-gray-100'>
+                    <Link
+                      to='/settings'
+                      onClick={() => setProfileOpen(false)}
+                      className='flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50'
+                    >
+                      <UserCircle className='h-4 w-4 text-gray-500 shrink-0' />
+                      Profile
+                    </Link>
+                    <Link
+                      to='/settings'
+                      onClick={() => setProfileOpen(false)}
+                      className='flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50'
+                    >
+                      <Cog className='h-4 w-4 text-gray-500 shrink-0' />
+                      Account settings
+                    </Link>
+                    <Link
+                      to='/settings'
+                      onClick={() => setProfileOpen(false)}
+                      className='flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50'
+                    >
+                      <span
+                        className='w-4 h-4 flex items-center justify-center shrink-0 text-gray-500'
+                        aria-hidden
+                      >
+                        ◐
+                      </span>
+                      Theme
+                      <ChevronRight className='h-4 w-4 text-gray-400 ml-auto' />
+                    </Link>
+                  </div>
+                  <div className='border-t border-gray-100'>
+                    <button
+                      type='button'
+                      onClick={() => {
+                        setProfileOpen(false);
+                        setShowLogoutConfirm(true);
+                      }}
+                      className='flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50'
+                    >
+                      <LogOut className='h-4 w-4 text-gray-500 shrink-0' />
+                      Log out
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
-        <main className='flex-1 p-4 sm:p-6 overflow-auto'>{children}</main>
+        <main className='flex-1 p-4 sm:p-6 md:p-8 overflow-auto'>
+          {children}
+        </main>
       </div>
+
+      <NotificationsPanel
+        open={showNotificationsPanel}
+        onClose={() => setShowNotificationsPanel(false)}
+        notifications={notifications}
+        onMarkAsRead={handleMarkAsRead}
+        onMarkAsUnread={handleMarkAsUnread}
+      />
+
+      {/* Logout confirmation */}
+      {showLogoutConfirm && (
+        <>
+          <div
+            className='fixed inset-0 z-50 bg-black/50'
+            onClick={() => setShowLogoutConfirm(false)}
+            aria-hidden
+          />
+          <div
+            role='dialog'
+            aria-modal='true'
+            aria-labelledby='logout-dialog-title'
+            className='fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-6 shadow-xl'
+          >
+            <h2
+              id='logout-dialog-title'
+              className='text-lg font-semibold text-gray-900 mb-2'
+            >
+              Log out?
+            </h2>
+            <p className='text-sm text-gray-600 mb-6'>
+              Are you sure you want to log out of your account?
+            </p>
+            <div className='flex justify-end gap-3'>
+              <button
+                type='button'
+                onClick={() => setShowLogoutConfirm(false)}
+                className='px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors'
+              >
+                Cancel
+              </button>
+              <button
+                type='button'
+                onClick={handleLogout}
+                className='px-4 py-2.5 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl transition-colors'
+              >
+                Log out
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

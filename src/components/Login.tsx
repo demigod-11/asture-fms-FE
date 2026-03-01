@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
-import logo from '@/assets/logo.svg';
-import errorIcon from '@/assets/error-icon.svg';
+import AuthPageHeader from '@/components/auth/AuthPageHeader';
+import FieldError from '@/components/auth/FieldError';
 import { useAuth } from '@/contexts/AuthContext';
 
 const Login: React.FC = () => {
@@ -55,17 +55,11 @@ const Login: React.FC = () => {
   return (
     <AuthLayout>
       <div className='w-full max-w-md space-y-8'>
-        <div className='flex justify-center'>
-          <img src={logo} alt='TeddyEd' className='w-16 h-16' />
-        </div>
-        <div className='text-center space-y-2'>
-          <h1 className='text-2xl font-semibold text-gray-900 tracking-tight'>
-            Login to your account
-          </h1>
-          <p className='text-sm text-gray-500'>
-            Enter your details to continue
-          </p>
-        </div>
+        <AuthPageHeader
+          title='Login to your account'
+          subtitle='Enter your details to continue'
+          variant='logo'
+        />
         <form onSubmit={handleLogin} className='space-y-6'>
           <div className='space-y-2'>
             <label htmlFor='email' className='form-label text-gray-900'>
@@ -78,7 +72,7 @@ const Login: React.FC = () => {
                 name='email'
                 type='email'
                 value={email}
-                onChange={(e) => {
+                onChange={e => {
                   setEmail(e.target.value);
                   if (emailError) validateEmail(e.target.value);
                 }}
@@ -88,12 +82,7 @@ const Login: React.FC = () => {
                 placeholder='hello@teddyed.com'
               />
             </div>
-            {emailError && (
-              <p className='text-sm text-error-500 flex items-center gap-1'>
-                <img src={errorIcon} alt='' className='h-4 w-4' />
-                {emailError}
-              </p>
-            )}
+            {emailError && <FieldError message={emailError} />}
           </div>
           <div className='space-y-2'>
             <label htmlFor='password' className='form-label text-gray-900'>
@@ -106,7 +95,7 @@ const Login: React.FC = () => {
                 name='password'
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => {
+                onChange={e => {
                   setPassword(e.target.value);
                   if (passwordError) validatePassword(e.target.value);
                 }}
@@ -121,15 +110,14 @@ const Login: React.FC = () => {
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? <EyeOff className='h-5 w-5' /> : <Eye className='h-5 w-5' />}
+                {showPassword ? (
+                  <EyeOff className='h-5 w-5' />
+                ) : (
+                  <Eye className='h-5 w-5' />
+                )}
               </button>
             </div>
-            {passwordError && (
-              <p className='text-sm text-error-500 flex items-center gap-1'>
-                <img src={errorIcon} alt='' className='h-4 w-4' />
-                {passwordError}
-              </p>
-            )}
+            {passwordError && <FieldError message={passwordError} />}
           </div>
           <div className='flex justify-end'>
             <Link
@@ -148,7 +136,10 @@ const Login: React.FC = () => {
         </form>
         <p className='text-center text-sm text-gray-500'>
           Don&apos;t have an account?{' '}
-          <Link to='/signup' className='font-medium text-[#073E60] underline hover:text-[#052d47]'>
+          <Link
+            to='/signup'
+            className='font-medium text-[#073E60] underline hover:text-[#052d47]'
+          >
             Create one
           </Link>
         </p>

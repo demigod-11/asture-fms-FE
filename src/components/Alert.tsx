@@ -51,9 +51,11 @@ const Alert: React.FC<AlertProps> = ({
   return (
     <div
       role='alert'
-      className={`flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg text-white text-sm ${bg} ${className}`}
+      className={`flex flex-wrap items-center gap-2 sm:gap-3 px-4 py-3 sm:px-4 sm:py-3 rounded-xl text-white text-sm shadow-card ${bg} ${className}`}
     >
-      <span className={`flex shrink-0 w-7 h-7 sm:w-8 sm:h-8 items-center justify-center rounded-full ${iconBg}`}>
+      <span
+        className={`flex shrink-0 w-7 h-7 sm:w-8 sm:h-8 items-center justify-center rounded-full ${iconBg}`}
+      >
         <Icon className='h-3.5 w-3.5 sm:h-4 sm:w-4' aria-hidden />
       </span>
       <p className='flex-1 min-w-0'>{message}</p>

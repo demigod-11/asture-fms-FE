@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Eye, EyeOff, Info } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
-import logo from '@/assets/logo.svg';
-import errorIcon from '@/assets/error-icon.svg';
+import AuthPageHeader from '@/components/auth/AuthPageHeader';
+import FieldError from '@/components/auth/FieldError';
 import { useAuth } from '@/contexts/AuthContext';
 
 const PASSWORD_HINT =
@@ -11,7 +11,8 @@ const PASSWORD_HINT =
 
 function validatePassword(password: string): string | null {
   if (password.length < 8) return 'Password must be at least 8 characters';
-  if (!/[A-Z]/.test(password)) return 'Password must contain at least 1 uppercase letter';
+  if (!/[A-Z]/.test(password))
+    return 'Password must contain at least 1 uppercase letter';
   if (!/[0-9]/.test(password)) return 'Password must contain at least 1 number';
   return null;
 }
@@ -62,17 +63,11 @@ const SignUp: React.FC = () => {
   return (
     <AuthLayout>
       <div className='w-full max-w-md space-y-8'>
-        <div className='flex justify-center'>
-          <img src={logo} alt='TeddyEd' className='w-16 h-16' />
-        </div>
-        <div className='text-center space-y-2'>
-          <h1 className='text-2xl font-semibold text-gray-900 tracking-tight'>
-            Create a new account
-          </h1>
-          <p className='text-sm text-gray-500'>
-            Enter your details to register with Asture.
-          </p>
-        </div>
+        <AuthPageHeader
+          title='Create a new account'
+          subtitle='Enter your details to register with Asture.'
+          variant='logo'
+        />
         <form onSubmit={handleSubmit} className='space-y-5'>
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
             <div className='space-y-2'>
@@ -85,7 +80,7 @@ const SignUp: React.FC = () => {
                   id='firstName'
                   type='text'
                   value={firstName}
-                  onChange={(e) => {
+                  onChange={e => {
                     setFirstName(e.target.value);
                     if (firstNameError) setFirstNameError('');
                   }}
@@ -95,12 +90,7 @@ const SignUp: React.FC = () => {
                   placeholder='John'
                 />
               </div>
-              {firstNameError && (
-                <p className='text-sm text-error-500 flex items-center gap-1'>
-                  <img src={errorIcon} alt='' className='h-4 w-4' />
-                  {firstNameError}
-                </p>
-              )}
+              {firstNameError && <FieldError message={firstNameError} />}
             </div>
             <div className='space-y-2'>
               <label htmlFor='lastName' className='form-label text-gray-900'>
@@ -112,7 +102,7 @@ const SignUp: React.FC = () => {
                   id='lastName'
                   type='text'
                   value={lastName}
-                  onChange={(e) => {
+                  onChange={e => {
                     setLastName(e.target.value);
                     if (lastNameError) setLastNameError('');
                   }}
@@ -122,12 +112,7 @@ const SignUp: React.FC = () => {
                   placeholder='Doe'
                 />
               </div>
-              {lastNameError && (
-                <p className='text-sm text-error-500 flex items-center gap-1'>
-                  <img src={errorIcon} alt='' className='h-4 w-4' />
-                  {lastNameError}
-                </p>
-              )}
+              {lastNameError && <FieldError message={lastNameError} />}
             </div>
           </div>
           <div className='space-y-2'>
@@ -140,7 +125,7 @@ const SignUp: React.FC = () => {
                 id='email'
                 type='email'
                 value={email}
-                onChange={(e) => {
+                onChange={e => {
                   setEmail(e.target.value);
                   setEmailError(validateEmail(e.target.value));
                 }}
@@ -150,12 +135,7 @@ const SignUp: React.FC = () => {
                 placeholder='hello@johndoe.com'
               />
             </div>
-            {emailError && (
-              <p className='text-sm text-error-500 flex items-center gap-1'>
-                <img src={errorIcon} alt='' className='h-4 w-4' />
-                {emailError}
-              </p>
-            )}
+            {emailError && <FieldError message={emailError} />}
           </div>
           <div className='space-y-2'>
             <label htmlFor='password' className='form-label text-gray-900'>
@@ -167,7 +147,7 @@ const SignUp: React.FC = () => {
                 id='password'
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => {
+                onChange={e => {
                   setPassword(e.target.value);
                   setPasswordError(validatePassword(e.target.value) ?? '');
                 }}
@@ -182,19 +162,18 @@ const SignUp: React.FC = () => {
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? <EyeOff className='h-5 w-5' /> : <Eye className='h-5 w-5' />}
+                {showPassword ? (
+                  <EyeOff className='h-5 w-5' />
+                ) : (
+                  <Eye className='h-5 w-5' />
+                )}
               </button>
             </div>
             <p className='text-xs text-gray-500 flex items-center gap-1'>
               <Info className='h-3.5 w-3.5 shrink-0' />
               {PASSWORD_HINT}
             </p>
-            {passwordError && (
-              <p className='text-sm text-error-500 flex items-center gap-1'>
-                <img src={errorIcon} alt='' className='h-4 w-4' />
-                {passwordError}
-              </p>
-            )}
+            {passwordError && <FieldError message={passwordError} />}
           </div>
           <button
             type='submit'
@@ -205,7 +184,10 @@ const SignUp: React.FC = () => {
         </form>
         <p className='text-center text-sm text-gray-500'>
           Already have an account?{' '}
-          <Link to='/login' className='font-medium text-[#073E60] underline hover:text-[#052d47]'>
+          <Link
+            to='/login'
+            className='font-medium text-[#073E60] underline hover:text-[#052d47]'
+          >
             Login
           </Link>
         </p>

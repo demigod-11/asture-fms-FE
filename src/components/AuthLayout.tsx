@@ -30,7 +30,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
+      setCurrentSlide(prev => (prev + 1) % SLIDES.length);
     }, 6000);
     return () => clearInterval(interval);
   }, []);
@@ -39,12 +39,17 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
     <div className='min-h-screen bg-white flex flex-col lg:flex-row'>
       <div className='flex-1 flex flex-col lg:w-1/2'>
         <div className='flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8'>
-          {children}
+          <div className='w-full max-w-md rounded-2xl bg-white p-8 sm:p-10 shadow-card border border-gray-200/60'>
+            {children}
+          </div>
         </div>
         <footer className='py-4 px-6 border-t border-gray-200 bg-gray-50'>
           <div className='flex justify-between items-center text-sm text-gray-500'>
-            <span>TeddyEd © 2025 All Rights Reserved.</span>
-            <a href='/terms' className='hover:text-gray-700 transition-colors duration-200'>
+            <span>Asture FMS © 2025 All Rights Reserved.</span>
+            <a
+              href='/terms'
+              className='hover:text-gray-700 transition-colors duration-200'
+            >
               Terms of Service
             </a>
           </div>
@@ -53,13 +58,25 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
       <div className='hidden lg:flex lg:w-[640px] lg:h-screen relative overflow-hidden'>
         <div className='absolute inset-0 bg-gradient-to-b from-[#007DFC] via-[#0692FF] to-[#D6F3FF]' />
         <div className='absolute top-0 left-0'>
-          <img src={shape38} alt='' className='w-[218px] h-[335px] opacity-40' />
+          <img
+            src={shape38}
+            alt=''
+            className='w-[218px] h-[335px] opacity-40'
+          />
         </div>
         <div className='absolute top-0 right-0'>
-          <img src={shape84} alt='' className='w-[257px] h-[213px] opacity-40' />
+          <img
+            src={shape84}
+            alt=''
+            className='w-[257px] h-[213px] opacity-40'
+          />
         </div>
         <div className='absolute top-1/3 right-8'>
-          <img src={shape76} alt='' className='w-[327px] h-[210px] opacity-40' />
+          <img
+            src={shape76}
+            alt=''
+            className='w-[327px] h-[210px] opacity-40'
+          />
         </div>
         <div className='relative z-10 flex items-center justify-center w-full h-full px-8'>
           <div className='w-full max-w-[404px]'>
@@ -84,7 +101,11 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
                 </div>
               ))}
             </div>
-            <div className='flex justify-center items-center gap-1.5 mt-10' role='tablist' aria-label='Promo slides'>
+            <div
+              className='flex justify-center items-center gap-1.5 mt-10'
+              role='tablist'
+              aria-label='Promo slides'
+            >
               {SLIDES.map((_, index) => (
                 <button
                   key={index}
@@ -94,7 +115,9 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
                   aria-selected={index === currentSlide}
                   aria-label={`Slide ${index + 1} of ${SLIDES.length}`}
                   className={`rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 ${
-                    index === currentSlide ? 'w-4 h-1 bg-[#073E60]' : 'w-1 h-1 bg-white/60 hover:bg-white/80'
+                    index === currentSlide
+                      ? 'w-4 h-1 bg-[#073E60]'
+                      : 'w-1 h-1 bg-white/60 hover:bg-white/80'
                   }`}
                 />
               ))}

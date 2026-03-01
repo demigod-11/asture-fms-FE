@@ -101,6 +101,14 @@ export default {
           '0 4px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
         large:
           '0 10px 40px -10px rgba(0, 0, 0, 0.15), 0 2px 10px -2px rgba(0, 0, 0, 0.05)',
+        /* Glossy / app-grade surfaces */
+        card: '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+        'card-hover': '0 4px 14px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -2px rgba(0, 0, 0, 0.04)',
+        'button-primary': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+        'button-primary-hover': '0 2px 4px -1px rgba(0, 0, 0, 0.12), 0 1px 3px -2px rgba(0, 0, 0, 0.08)',
+        sidebar: '2px 0 8px -2px rgba(0, 0, 0, 0.06)',
+        header: '0 1px 0 0 rgba(0, 0, 0, 0.05)',
+        input: '0 1px 2px 0 rgba(0, 0, 0, 0.04)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
