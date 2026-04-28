@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Moon, Sun } from 'lucide-react';
 import shape38 from '@/assets/shape-38.svg';
 import shape84 from '@/assets/shape-84.svg';
 import shape76 from '@/assets/shape-76.svg';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface AuthLayoutProps {
   children: React.ReactNode;
@@ -26,6 +28,7 @@ const SLIDES = [
 ];
 
 const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
+  const { theme, toggleTheme } = useTheme();
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
@@ -36,22 +39,40 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
   }, []);
 
   return (
-    <div className='min-h-screen bg-white flex flex-col lg:flex-row'>
+    <div className='min-h-screen bg-white dark:bg-gray-900 flex flex-col lg:flex-row'>
       <div className='flex-1 flex flex-col lg:w-1/2'>
         <div className='flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8'>
-          <div className='w-full max-w-md rounded-2xl bg-white p-8 sm:p-10 shadow-card border border-gray-200/60'>
+          <div className='w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-8 sm:p-10 shadow-card border border-gray-200/60 dark:border-gray-700'>
             {children}
           </div>
         </div>
-        <footer className='py-4 px-6 border-t border-gray-200 bg-gray-50'>
-          <div className='flex justify-between items-center text-sm text-gray-500'>
-            <span>Asture FMS © 2025 All Rights Reserved.</span>
-            <a
-              href='/terms'
-              className='hover:text-gray-700 transition-colors duration-200'
-            >
-              Terms of Service
-            </a>
+        <footer className='py-4 px-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80'>
+          <div className='flex justify-between items-center text-sm text-gray-500 dark:text-gray-300'>
+            <span>Asture FMS © 2026 All Rights Reserved.</span>
+            <div className='flex items-center gap-3'>
+              <button
+                type='button'
+                onClick={toggleTheme}
+                className='p-2 text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors'
+                aria-label={
+                  theme === 'dark'
+                    ? 'Switch to light mode'
+                    : 'Switch to dark mode'
+                }
+              >
+                {theme === 'dark' ? (
+                  <Sun className='h-4 w-4' />
+                ) : (
+                  <Moon className='h-4 w-4' />
+                )}
+              </button>
+              <a
+                href='/terms'
+                className='hover:text-gray-700 dark:hover:text-gray-100 transition-colors duration-200'
+              >
+                Terms of Service
+              </a>
+            </div>
           </div>
         </footer>
       </div>

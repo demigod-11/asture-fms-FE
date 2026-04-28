@@ -4,8 +4,27 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 import App from './App';
 import './styles/index.css';
+
+// Apply saved theme immediately to avoid flash (safe in SSR / missing APIs)
+try {
+  const key = 'asture-theme';
+  const stored =
+    typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+  const theme =
+    stored === 'dark' || stored === 'light'
+      ? stored
+      : typeof window !== 'undefined' &&
+          window.matchMedia?.('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
+  document.documentElement.classList.add(theme);
+} catch {
+  document.documentElement.classList.add('light');
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,14 +38,18 @@ const queryClient = new QueryClient({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <NotificationProvider>
-            <App />
-          </NotificationProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <ThemeProvider>
+            <AuthProvider>
+              <NotificationProvider>
+                <App />
+              </NotificationProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   </React.StrictMode>
 );

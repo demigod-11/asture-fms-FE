@@ -4,7 +4,10 @@ import { Mail, Lock, User, Eye, EyeOff, Info } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
 import AuthPageHeader from '@/components/auth/AuthPageHeader';
 import FieldError from '@/components/auth/FieldError';
+import FormAlert from '@/components/auth/FormAlert';
 import { useAuth } from '@/contexts/AuthContext';
+import { signUp, sendOtp } from '@/services/authApi';
+import { getApiErrorMessage } from '@/utils/apiError';
 
 const PASSWORD_HINT =
   'Must contain 1 Uppercase, 1 number, mini. of 8 characters.';
@@ -29,6 +32,8 @@ const SignUp: React.FC = () => {
   const [lastNameError, setLastNameError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const validateEmail = (value: string) => {
     if (!value.trim()) return 'Email cannot be blank';
@@ -37,8 +42,9 @@ const SignUp: React.FC = () => {
     return '';
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     setFirstNameError('');
     setLastNameError('');
     setEmailError('');
@@ -56,8 +62,33 @@ const SignUp: React.FC = () => {
 
     if (firstErr || lastErr || emailErr || passwordErr) return;
 
-    setEmailForVerification(email);
-    navigate('/verify-email', { state: { email } });
+    setSubmitting(true);
+    try {
+      // 1. Create user (POST /users/). Only on successful 201 Created do we send OTP.
+      const { data: createData, status } = await signUp({
+        email: email.trim(),
+        password,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        timezone: 'UTC',
+      });
+      if (status !== 201 || !createData?.success || !createData?.data) {
+        setFormError(
+          getApiErrorMessage(null, 'Registration failed. Please try again.')
+        );
+        return;
+      }
+      // 2. User created (201); send OTP for verification.
+      setEmailForVerification(email.trim());
+      await sendOtp(email.trim());
+      navigate('/otp', { state: { email: email.trim(), flow: 'signup' } });
+    } catch (err: unknown) {
+      setFormError(
+        getApiErrorMessage(err, 'Registration failed. Please try again.')
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -84,8 +115,8 @@ const SignUp: React.FC = () => {
                     setFirstName(e.target.value);
                     if (firstNameError) setFirstNameError('');
                   }}
-                  className={`input-field pl-10 py-3.5 rounded-xl border ${
-                    firstNameError ? 'border-error-300' : 'border-gray-200'
+                  className={`input-field pl-10 py-3.5 rounded-xl ${
+                    firstNameError ? '!border-error-300' : ''
                   }`}
                   placeholder='John'
                 />
@@ -106,8 +137,8 @@ const SignUp: React.FC = () => {
                     setLastName(e.target.value);
                     if (lastNameError) setLastNameError('');
                   }}
-                  className={`input-field pl-10 py-3.5 rounded-xl border ${
-                    lastNameError ? 'border-error-300' : 'border-gray-200'
+                  className={`input-field pl-10 py-3.5 rounded-xl ${
+                    lastNameError ? '!border-error-300' : ''
                   }`}
                   placeholder='Doe'
                 />
@@ -129,8 +160,8 @@ const SignUp: React.FC = () => {
                   setEmail(e.target.value);
                   setEmailError(validateEmail(e.target.value));
                 }}
-                className={`input-field pl-10 py-3.5 rounded-xl border ${
-                  emailError ? 'border-error-300' : 'border-gray-200'
+                className={`input-field pl-10 py-3.5 rounded-xl ${
+                  emailError ? '!border-error-300' : ''
                 }`}
                 placeholder='hello@johndoe.com'
               />
@@ -151,8 +182,8 @@ const SignUp: React.FC = () => {
                   setPassword(e.target.value);
                   setPasswordError(validatePassword(e.target.value) ?? '');
                 }}
-                className={`input-field pl-10 pr-12 py-3.5 rounded-xl border ${
-                  passwordError ? 'border-error-300' : 'border-gray-200'
+                className={`input-field pl-10 pr-12 py-3.5 rounded-xl ${
+                  passwordError ? '!border-error-300' : ''
                 }`}
                 placeholder='Enter password (mini. of 8 characters)'
               />
@@ -175,19 +206,20 @@ const SignUp: React.FC = () => {
             </p>
             {passwordError && <FieldError message={passwordError} />}
           </div>
+          {formError && (
+            <FormAlert message={formError} onClose={() => setFormError('')} />
+          )}
           <button
             type='submit'
-            className='w-full bg-[#073E60] text-white py-3 px-4 rounded-xl font-medium hover:bg-[#052d47] focus:outline-none focus:ring-2 focus:ring-[#073E60] focus:ring-offset-2 transition-colors'
+            disabled={submitting}
+            className='w-full bg-[#073E60] text-white py-3 px-4 rounded-xl font-medium hover:bg-[#052d47] focus:outline-none focus:ring-2 focus:ring-[#073E60] focus:ring-offset-2 disabled:opacity-70 transition-colors'
           >
-            Register
+            {submitting ? 'Creating account…' : 'Register'}
           </button>
         </form>
-        <p className='text-center text-sm text-gray-500'>
+        <p className='text-center text-sm text-gray-500 dark:text-gray-400'>
           Already have an account?{' '}
-          <Link
-            to='/login'
-            className='font-medium text-[#073E60] underline hover:text-[#052d47]'
-          >
+          <Link to='/login' className='auth-link'>
             Login
           </Link>
         </p>

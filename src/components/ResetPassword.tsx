@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
+import FormAlert from '@/components/auth/FormAlert';
+import FieldError from '@/components/auth/FieldError';
 import { useNotification } from '@/contexts/NotificationContext';
 import logo from '@/assets/logo.svg';
-import errorIcon from '@/assets/error-icon.svg';
+import { resetPassword } from '@/services/authApi';
+import { getApiErrorMessage } from '@/utils/apiError';
 
 function validatePassword(password: string): string | null {
   if (password.length < 8) return 'Password must be at least 8 characters';
@@ -18,14 +21,22 @@ const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { notify } = useNotification();
+  const [token, setToken] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [confirmError, setConfirmError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    setToken(params.get('token') ?? '');
+  }, [location.search]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const pErr = validatePassword(password);
     const cErr =
@@ -37,10 +48,25 @@ const ResetPassword: React.FC = () => {
 
     setPasswordError(pErr ?? '');
     setConfirmError(cErr);
+    setFormError('');
     if (pErr || cErr) return;
+    if (!token.trim()) {
+      setFormError('Invalid or missing reset link. Request a new one.');
+      return;
+    }
 
-    notify({ variant: 'success', message: 'Password reset successfully.' });
-    navigate('/login', { replace: true });
+    setSubmitting(true);
+    try {
+      await resetPassword({ token, new_password: password });
+      notify({ variant: 'success', message: 'Password reset successfully.' });
+      navigate('/login', { replace: true });
+    } catch (err: unknown) {
+      setFormError(
+        getApiErrorMessage(err, 'Reset failed. The link may have expired.')
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -74,8 +100,8 @@ const ResetPassword: React.FC = () => {
                   setPassword(e.target.value);
                   setPasswordError(validatePassword(e.target.value) ?? '');
                 }}
-                className={`input-field pl-10 pr-12 py-3.5 rounded-xl border ${
-                  passwordError ? 'border-error-300' : 'border-gray-200'
+                className={`input-field pl-10 pr-12 py-3.5 rounded-xl ${
+                  passwordError ? '!border-error-300' : ''
                 }`}
                 placeholder='Enter password (mini. of 8 characters)'
               />
@@ -92,12 +118,7 @@ const ResetPassword: React.FC = () => {
                 )}
               </button>
             </div>
-            {passwordError && (
-              <p className='text-sm text-error-500 flex items-center gap-1'>
-                <img src={errorIcon} alt='' className='h-4 w-4' />
-                {passwordError}
-              </p>
-            )}
+            {passwordError && <FieldError message={passwordError} />}
           </div>
           <div className='space-y-2'>
             <label
@@ -120,8 +141,8 @@ const ResetPassword: React.FC = () => {
                       : ''
                   );
                 }}
-                className={`input-field pl-10 pr-12 py-3.5 rounded-xl border ${
-                  confirmError ? 'border-error-300' : 'border-gray-200'
+                className={`input-field pl-10 pr-12 py-3.5 rounded-xl ${
+                  confirmError ? '!border-error-300' : ''
                 }`}
                 placeholder='Confirm password'
               />
@@ -138,25 +159,21 @@ const ResetPassword: React.FC = () => {
                 )}
               </button>
             </div>
-            {confirmError && (
-              <p className='text-sm text-error-500 flex items-center gap-1'>
-                <img src={errorIcon} alt='' className='h-4 w-4' />
-                {confirmError}
-              </p>
+            {confirmError && <FieldError message={confirmError} />}
+            {formError && (
+              <FormAlert message={formError} onClose={() => setFormError('')} />
             )}
           </div>
           <button
             type='submit'
-            className='w-full bg-[#073E60] text-white py-3 px-4 rounded-xl font-medium hover:bg-[#052d47] focus:outline-none focus:ring-2 focus:ring-[#073E60] focus:ring-offset-2 transition-colors'
+            disabled={submitting || !token}
+            className='w-full bg-[#073E60] text-white py-3 px-4 rounded-xl font-medium hover:bg-[#052d47] focus:outline-none focus:ring-2 focus:ring-[#073E60] focus:ring-offset-2 disabled:opacity-70 transition-colors'
           >
-            Reset password
+            {submitting ? 'Resetting…' : 'Reset password'}
           </button>
         </form>
-        <p className='text-center text-sm text-gray-500'>
-          <Link
-            to='/login'
-            className='font-medium text-[#073E60] underline hover:text-[#052d47]'
-          >
+        <p className='text-center text-sm text-gray-500 dark:text-gray-400'>
+          <Link to='/login' className='auth-link'>
             Back to login
           </Link>
         </p>

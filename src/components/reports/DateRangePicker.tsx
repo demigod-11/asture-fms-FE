@@ -77,7 +77,9 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
   const handleDayClick = (year: number, month: number, day: number) => {
     const d = toYMD(new Date(year, month, day));
     if (selecting === 'from') {
-      onChange(d, to || d);
+      // When picking a new start date, reset end date to the same day.
+      // This avoids "sticky" end dates (often today's date) and keeps the range valid.
+      onChange(d, d);
       setSelecting('to');
     } else {
       const fromVal = from || d;
@@ -110,7 +112,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
 
   const calendarContent = (
     <div
-      className={`bg-white border border-gray-200 rounded-xl shadow-lg p-4 min-w-[280px] ${inline ? '' : 'absolute top-full left-0 mt-1 z-50'}`}
+      className={`bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg p-4 min-w-[280px] ${inline ? '' : 'absolute top-full left-0 mt-1 z-50'}`}
     >
       <div className='flex items-center justify-between mb-3'>
         <button
@@ -122,12 +124,12 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
                 : { year: v.year, month: v.month - 1 }
             )
           }
-          className='p-1.5 rounded-lg hover:bg-gray-100 text-gray-600'
+          className='p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
           aria-label='Previous month'
         >
           <ChevronLeft className='h-4 w-4' />
         </button>
-        <span className='text-sm font-semibold text-gray-900'>
+        <span className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
           {new Date(view.year, view.month).toLocaleString('default', {
             month: 'long',
             year: 'numeric',
@@ -142,7 +144,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
                 : { year: v.year, month: v.month + 1 }
             )
           }
-          className='p-1.5 rounded-lg hover:bg-gray-100 text-gray-600'
+          className='p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
           aria-label='Next month'
         >
           <ChevronRight className='h-4 w-4' />
@@ -150,7 +152,10 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
       </div>
       <div className='grid grid-cols-7 gap-0.5 text-center'>
         {weekDays.map(w => (
-          <div key={w} className='text-xs font-medium text-gray-500 py-1'>
+          <div
+            key={w}
+            className='text-xs font-medium text-gray-500 dark:text-gray-400 py-1'
+          >
             {w}
           </div>
         ))}
@@ -168,8 +173,8 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
                 start || end
                   ? 'bg-[#073E60] text-white font-medium'
                   : inRange
-                    ? 'bg-primary-100 text-gray-900'
-                    : 'hover:bg-gray-100 text-gray-700'
+                    ? 'bg-primary-100 dark:bg-primary-900/40 text-gray-900 dark:text-gray-100'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
               }`}
             >
               {day}
@@ -177,7 +182,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
           );
         })}
       </div>
-      <p className='text-xs text-gray-500 mt-2'>
+      <p className='text-xs text-gray-500 dark:text-gray-400 mt-2'>
         {selecting === 'from' ? 'Select start date' : 'Select end date'}
       </p>
     </div>
@@ -190,12 +195,18 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
       <button
         type='button'
         onClick={() => setOpen(o => !o)}
-        className='input-field py-2.5 pl-3 pr-10 text-sm rounded-xl border border-gray-200 min-w-[240px] bg-white text-left flex items-center gap-2'
+        className='input-field py-2.5 pl-3 pr-10 text-sm rounded-xl border border-gray-200 dark:border-gray-600 min-w-[240px] bg-white dark:bg-gray-800 text-left flex items-center gap-2 text-gray-900 dark:text-gray-100'
         aria-label='Select date range'
         aria-expanded={open}
       >
-        <Calendar className='h-4 w-4 text-gray-400 shrink-0' />
-        <span className={from && to ? 'text-gray-900' : 'text-gray-500'}>
+        <Calendar className='h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0' />
+        <span
+          className={
+            from && to
+              ? 'text-gray-900 dark:text-gray-100'
+              : 'text-gray-500 dark:text-gray-400'
+          }
+        >
           {formatDisplay(from, to)}
         </span>
       </button>

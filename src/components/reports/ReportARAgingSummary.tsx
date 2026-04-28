@@ -1,9 +1,14 @@
 import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from 'react-query';
+import { useProfile } from '@/contexts/ProfileContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import ReportToolbar, { getDefaultReportToolbarState } from './ReportToolbar';
 import SelectableDataTable from '@/components/SelectableDataTable';
-
-const formatNgn = (n: number) =>
-  `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import {
+  getArAgingReport,
+  type ArAgingReportResponse,
+} from '@/services/reportsApi';
 
 interface ARAgingRow {
   id: string;
@@ -16,53 +21,50 @@ interface ARAgingRow {
   total: number;
 }
 
-const SAMPLE_AR_AGING: ARAgingRow[] = [
-  {
-    id: '1',
-    customer: 'Michael Brown',
-    current: 120000,
-    days1_30: 0,
-    days31_60: 45000,
-    days61_90: 0,
-    over90: 0,
-    total: 165000,
-  },
-  {
-    id: '2',
-    customer: 'Jane Smith',
-    current: 0,
-    days1_30: 80000,
-    days31_60: 0,
-    days61_90: 20000,
-    over90: 0,
-    total: 100000,
-  },
-  {
-    id: '3',
-    customer: 'Chidi Okeke',
-    current: 55000,
-    days1_30: 0,
-    days31_60: 0,
-    days61_90: 0,
-    over90: 15000,
-    total: 70000,
-  },
-];
-
 const NUM_HEADER = 'text-right';
 const NUM_CELL = 'text-right tabular-nums';
-const NUM_TOTAL = 'text-right tabular-nums font-semibold text-gray-900';
+const NUM_TOTAL =
+  'text-right tabular-nums font-semibold text-gray-900 dark:text-gray-100';
 
 const ReportARAgingSummary: React.FC = () => {
+  const { profiles } = useProfile();
+  const { formatCurrency } = useCurrency();
   const [toolbarState, setToolbarState] = useState(
     getDefaultReportToolbarState
   );
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
+  const organisationId = profiles[0]?.organisation_id ?? '';
+
+  const {
+    data: report,
+    isLoading,
+    error,
+  } = useQuery<ArAgingReportResponse>(
+    ['reports', 'ar-aging', organisationId],
+    () => getArAgingReport(organisationId),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const rows: ARAgingRow[] = useMemo(
+    () =>
+      report?.rows.map(r => ({
+        id: r.customer_id,
+        customer: r.customer_name,
+        current: Number(r.current ?? 0),
+        days1_30: Number(r.days_1_30 ?? 0),
+        days31_60: Number(r.days_31_60 ?? 0),
+        days61_90: Number(r.days_61_90 ?? 0),
+        over90: Number(r.days_over_90 ?? 0),
+        total: Number(r.total ?? 0),
+      })) ?? [],
+    [report]
+  );
+
   const sortedData = useMemo(() => {
-    if (!sortKey) return SAMPLE_AR_AGING;
-    return [...SAMPLE_AR_AGING].sort((a, b) => {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => {
       const aVal = (a as unknown as Record<string, unknown>)[sortKey];
       const bVal = (b as unknown as Record<string, unknown>)[sortKey];
       const cmp =
@@ -73,14 +75,21 @@ const ReportARAgingSummary: React.FC = () => {
             });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [sortKey, sortDir]);
+  }, [rows, sortKey, sortDir]);
 
   const columns: import('@/components/SelectableDataTable').SelectableDataTableColumn<ARAgingRow>[] =
     [
       {
         id: 'customer',
         header: 'Customer',
-        cell: r => r.customer,
+        cell: r => (
+          <Link
+            to={`/sales/invoice?customer_id=${encodeURIComponent(r.id)}`}
+            className='text-[#073E60] dark:text-primary-400 hover:underline'
+          >
+            {r.customer}
+          </Link>
+        ),
         sortable: true,
       },
       {
@@ -88,7 +97,9 @@ const ReportARAgingSummary: React.FC = () => {
         header: 'Current',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_CELL}>{formatNgn(r.current)}</span>,
+        cell: r => (
+          <span className={NUM_CELL}>{formatCurrency(r.current)}</span>
+        ),
         sortable: true,
       },
       {
@@ -96,7 +107,9 @@ const ReportARAgingSummary: React.FC = () => {
         header: '1-30 days',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_CELL}>{formatNgn(r.days1_30)}</span>,
+        cell: r => (
+          <span className={NUM_CELL}>{formatCurrency(r.days1_30)}</span>
+        ),
         sortable: true,
       },
       {
@@ -104,7 +117,9 @@ const ReportARAgingSummary: React.FC = () => {
         header: '31-60 days',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_CELL}>{formatNgn(r.days31_60)}</span>,
+        cell: r => (
+          <span className={NUM_CELL}>{formatCurrency(r.days31_60)}</span>
+        ),
         sortable: true,
       },
       {
@@ -112,7 +127,9 @@ const ReportARAgingSummary: React.FC = () => {
         header: '61-90 days',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_CELL}>{formatNgn(r.days61_90)}</span>,
+        cell: r => (
+          <span className={NUM_CELL}>{formatCurrency(r.days61_90)}</span>
+        ),
         sortable: true,
       },
       {
@@ -120,7 +137,7 @@ const ReportARAgingSummary: React.FC = () => {
         header: 'Over 90',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_CELL}>{formatNgn(r.over90)}</span>,
+        cell: r => <span className={NUM_CELL}>{formatCurrency(r.over90)}</span>,
         sortable: true,
       },
       {
@@ -128,32 +145,44 @@ const ReportARAgingSummary: React.FC = () => {
         header: 'Total',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_TOTAL}>{formatNgn(r.total)}</span>,
+        cell: r => <span className={NUM_TOTAL}>{formatCurrency(r.total)}</span>,
         sortable: true,
       },
     ];
 
-  const footerCells: React.ReactNode[] = [
-    'Total',
-    <span key='f1' className={NUM_TOTAL}>
-      {formatNgn(175000)}
-    </span>,
-    <span key='f2' className={NUM_TOTAL}>
-      {formatNgn(80000)}
-    </span>,
-    <span key='f3' className={NUM_TOTAL}>
-      {formatNgn(45000)}
-    </span>,
-    <span key='f4' className={NUM_TOTAL}>
-      {formatNgn(20000)}
-    </span>,
-    <span key='f5' className={NUM_TOTAL}>
-      {formatNgn(15000)}
-    </span>,
-    <span key='f6' className={NUM_TOTAL}>
-      {formatNgn(335000)}
-    </span>,
-  ];
+  const totalRow = report
+    ? {
+        current: Number(report.total_current ?? 0),
+        days1_30: Number(report.total_1_30 ?? 0),
+        days31_60: Number(report.total_31_60 ?? 0),
+        days61_90: Number(report.total_61_90 ?? 0),
+        over90: Number(report.total_over_90 ?? 0),
+        total: Number(report.total_overall ?? 0),
+      }
+    : null;
+  const footerCells: React.ReactNode[] = totalRow
+    ? [
+        'Total',
+        <span key='f1' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.current)}
+        </span>,
+        <span key='f2' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.days1_30)}
+        </span>,
+        <span key='f3' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.days31_60)}
+        </span>,
+        <span key='f4' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.days61_90)}
+        </span>,
+        <span key='f5' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.over90)}
+        </span>,
+        <span key='f6' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.total)}
+        </span>,
+      ]
+    : ['Total', '', '', '', '', '', ''];
 
   return (
     <div className='space-y-4'>
@@ -166,8 +195,15 @@ const ReportARAgingSummary: React.FC = () => {
         showSearch
       />
 
+      {error ? (
+        <p className='text-sm text-red-600 dark:text-red-400'>
+          {error instanceof Error
+            ? error.message
+            : 'Failed to load A/R aging summary'}
+        </p>
+      ) : null}
       <SelectableDataTable<ARAgingRow>
-        data={sortedData}
+        data={isLoading ? [] : sortedData}
         getRowId={r => r.id}
         columns={columns}
         selectionLabel='A/R aging rows'
@@ -179,7 +215,7 @@ const ReportARAgingSummary: React.FC = () => {
         }}
         tableMinWidth='640px'
         footerCells={footerCells}
-        emptyMessage='No A/R aging data.'
+        emptyMessage={isLoading ? 'Loading A/R aging…' : 'No A/R aging data.'}
       />
     </div>
   );

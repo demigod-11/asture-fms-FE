@@ -32,9 +32,9 @@ const StartFreeTrial: React.FC = () => {
           {TRIAL_FEATURES.map(feature => (
             <li
               key={feature}
-              className='flex items-center gap-3 text-sm text-gray-700'
+              className='flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200'
             >
-              <span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-600'>
+              <span className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/50 text-primary-600 dark:text-primary-300'>
                 <Check className='h-3 w-3' />
               </span>
               {feature}
@@ -48,7 +48,7 @@ const StartFreeTrial: React.FC = () => {
         >
           Start free trial
         </button>
-        <p className='text-center text-xs text-gray-500'>
+        <p className='text-center text-xs text-gray-500 dark:text-gray-300'>
           You can cancel anytime. We’ll remind you before your trial ends.
         </p>
       </div>

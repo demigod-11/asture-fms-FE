@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown } from 'lucide-react';
+import { useCurrency } from '@/contexts/CurrencyContext';
+
+export interface AddExpensePayload {
+  description: string;
+  amount: string;
+  expense_date: string;
+  payment_status: string;
+}
 
 interface AddExpenseDrawerProps {
   open: boolean;
   onClose: () => void;
-  onSaved?: () => void;
+  onSaved?: (payload: AddExpensePayload) => void;
+  isSaving?: boolean;
+  saveError?: string | undefined;
 }
 
 const EXPENSE_CATEGORIES = [
@@ -16,12 +26,16 @@ const EXPENSE_CATEGORIES = [
   'Other',
 ];
 const EXPENSE_STATUSES = ['Pending', 'Paid', 'Reimbursed'];
+const EXPENSE_FORM_ID = 'add-expense-form';
 
 const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
   open,
   onClose,
   onSaved,
+  isSaving = false,
+  saveError: _saveError,
 }) => {
+  const { symbol } = useCurrency();
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
@@ -32,8 +46,18 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSaved?.();
-    onClose();
+    const normalizedStatus = (status || 'Pending').toLowerCase();
+    onSaved?.({
+      description: description.trim(),
+      amount: amount.trim(),
+      expense_date: date,
+      payment_status:
+        normalizedStatus === 'pending' ||
+        normalizedStatus === 'paid' ||
+        normalizedStatus === 'reimbursed'
+          ? normalizedStatus
+          : 'pending',
+    });
   };
 
   if (!open) return null;
@@ -46,22 +70,22 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
         aria-hidden
       />
       <div
-        className='fixed top-0 right-0 bottom-0 z-[101] w-full max-w-md bg-white shadow-xl flex flex-col overflow-hidden'
+        className='fixed top-0 right-0 bottom-0 z-[101] w-full max-w-md bg-white dark:bg-gray-800 shadow-xl flex flex-col overflow-hidden'
         role='dialog'
         aria-modal='true'
         aria-labelledby='add-expense-title'
       >
-        <div className='flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0'>
+        <div className='flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0'>
           <h2
             id='add-expense-title'
-            className='text-lg font-semibold text-gray-900'
+            className='text-lg font-semibold text-gray-900 dark:text-gray-100'
           >
             Add expense
           </h2>
           <button
             type='button'
             onClick={onClose}
-            className='p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors'
+            className='p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors'
             aria-label='Close'
           >
             <X className='h-5 w-5' />
@@ -69,13 +93,14 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
         </div>
 
         <form
+          id={EXPENSE_FORM_ID}
           onSubmit={handleSubmit}
           className='flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4'
         >
           <div>
             <label
               htmlFor='expense-description'
-              className='form-label text-gray-900'
+              className='form-label text-gray-900 dark:text-gray-100'
             >
               Description <span className='text-error-500'>*</span>
             </label>
@@ -85,7 +110,7 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder='e.g. Office supplies'
-              className='input-field pl-3 py-3 rounded-xl border border-gray-200'
+              className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
               required
             />
           </div>
@@ -93,7 +118,7 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
           <div>
             <label
               htmlFor='expense-category'
-              className='form-label text-gray-900'
+              className='form-label text-gray-900 dark:text-gray-100'
             >
               Category
             </label>
@@ -102,15 +127,21 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
                 type='button'
                 id='expense-category'
                 onClick={() => setCategoryDropdownOpen(!categoryDropdownOpen)}
-                className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 flex items-center justify-between text-left'
+                className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between text-left'
               >
-                <span className={category ? 'text-gray-900' : 'text-gray-500'}>
+                <span
+                  className={
+                    category
+                      ? 'text-gray-900 dark:text-gray-100'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }
+                >
                   {category || 'Select category'}
                 </span>
-                <ChevronDown className='h-4 w-4 text-gray-400 shrink-0' />
+                <ChevronDown className='h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0' />
               </button>
               {categoryDropdownOpen && (
-                <div className='absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1'>
+                <div className='absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1'>
                   {EXPENSE_CATEGORIES.map(cat => (
                     <button
                       key={cat}
@@ -119,7 +150,7 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
                         setCategory(cat);
                         setCategoryDropdownOpen(false);
                       }}
-                      className='w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50'
+                      className='w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
                     >
                       {cat}
                     </button>
@@ -132,7 +163,7 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
           <div>
             <label
               htmlFor='expense-amount'
-              className='form-label text-gray-900'
+              className='form-label text-gray-900 dark:text-gray-100'
             >
               Amount <span className='text-error-500'>*</span>
             </label>
@@ -141,23 +172,25 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
               type='text'
               value={amount}
               onChange={e => setAmount(e.target.value)}
-              placeholder='₦0.00'
-              className='input-field pl-3 py-3 rounded-xl border border-gray-200'
+              placeholder={`${symbol}0.00`}
+              className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
               required
             />
           </div>
 
           <div>
-            <label htmlFor='expense-date' className='form-label text-gray-900'>
+            <label
+              htmlFor='expense-date'
+              className='form-label text-gray-900 dark:text-gray-100'
+            >
               Date <span className='text-error-500'>*</span>
             </label>
             <input
               id='expense-date'
-              type='text'
+              type='date'
               value={date}
               onChange={e => setDate(e.target.value)}
-              placeholder='e.g. 20 Mar 2025'
-              className='input-field pl-3 py-3 rounded-xl border border-gray-200'
+              className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
               required
             />
           </div>
@@ -165,7 +198,7 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
           <div>
             <label
               htmlFor='expense-status'
-              className='form-label text-gray-900'
+              className='form-label text-gray-900 dark:text-gray-100'
             >
               Status
             </label>
@@ -174,15 +207,21 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
                 type='button'
                 id='expense-status'
                 onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
-                className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 flex items-center justify-between text-left'
+                className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between text-left'
               >
-                <span className={status ? 'text-gray-900' : 'text-gray-500'}>
+                <span
+                  className={
+                    status
+                      ? 'text-gray-900 dark:text-gray-100'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }
+                >
                   {status || 'Select status'}
                 </span>
-                <ChevronDown className='h-4 w-4 text-gray-400 shrink-0' />
+                <ChevronDown className='h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0' />
               </button>
               {statusDropdownOpen && (
-                <div className='absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1'>
+                <div className='absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1'>
                   {EXPENSE_STATUSES.map(s => (
                     <button
                       key={s}
@@ -191,7 +230,7 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
                         setStatus(s);
                         setStatusDropdownOpen(false);
                       }}
-                      className='w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50'
+                      className='w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
                     >
                       {s}
                     </button>
@@ -202,20 +241,22 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
           </div>
         </form>
 
-        <div className='px-4 py-3 pb-6 border-t border-gray-200 flex justify-end gap-3 shrink-0 bg-white'>
+        <div className='px-4 py-3 pb-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0 bg-white dark:bg-gray-800'>
           <button
             type='button'
             onClick={onClose}
-            className='px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors'
+            disabled={isSaving}
+            className='px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl transition-colors disabled:opacity-50'
           >
             Cancel
           </button>
           <button
             type='submit'
-            onClick={handleSubmit}
-            className='px-4 py-2.5 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl transition-colors'
+            form={EXPENSE_FORM_ID}
+            disabled={isSaving}
+            className='px-4 py-2.5 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl transition-colors disabled:opacity-50'
           >
-            Add expense
+            {isSaving ? 'Saving…' : 'Add expense'}
           </button>
         </div>
       </div>

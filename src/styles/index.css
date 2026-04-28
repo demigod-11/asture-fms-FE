@@ -16,11 +16,11 @@
   }
 
   body {
-    @apply text-gray-900 bg-gray-50/80;
+    @apply text-gray-900 bg-gray-50/80 dark:text-gray-100 dark:bg-gray-900 transition-colors duration-200;
   }
 
   * {
-    @apply border-gray-200;
+    @apply border-gray-200 dark:border-gray-700;
   }
 }
 
@@ -41,10 +41,19 @@
   .btn-primary:active {
     transform: translateY(0);
   }
+  .dark .btn-primary {
+    background-color: #0c5a8a;
+  }
+  .dark .btn-primary:hover {
+    background-color: #073e60;
+  }
 
   .btn-secondary {
     @apply inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium bg-white text-gray-700 rounded-xl border border-gray-200 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  }
+  .dark .btn-secondary {
+    @apply bg-gray-800 text-gray-200 border-gray-600 hover:bg-gray-700 hover:border-gray-500;
   }
 
   .btn-danger {
@@ -54,10 +63,13 @@
 
   /* Surface card – clean, subtle shadow, no heavy border */
   .card {
-    @apply bg-white rounded-xl border border-gray-200/80 p-6 transition-shadow duration-200;
+    @apply bg-white rounded-xl border border-gray-200/80 p-6 transition-shadow duration-200 dark:bg-gray-800 dark:border-gray-700;
     box-shadow:
       0 1px 3px 0 rgba(0, 0, 0, 0.05),
       0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  }
+  .dark .card {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.2);
   }
   .card-hover:hover {
     box-shadow:
@@ -65,18 +77,74 @@
       0 2px 6px -2px rgba(0, 0, 0, 0.04);
   }
 
-  /* Inputs – crisp border, clear focus */
+  /* Inputs – always show a visible border (filled or empty, focus or not) */
   .input-field {
-    @apply w-full px-3 py-2.5 text-sm border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/25 focus:border-primary-500 transition-all duration-200;
-    border-color: #e5e7eb;
+    @apply w-full px-3 py-2.5 text-sm rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-500/25 focus:border-primary-500 transition-all duration-200 dark:bg-gray-800 dark:text-gray-100;
+    border: 1px solid #e5e7eb;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+    caret-color: #073e60;
+  }
+  .input-field:focus {
+    border-color: #073e60;
+  }
+  .dark .input-field {
+    border-color: #4b5563;
+    caret-color: #60a5fa;
+  }
+  .dark .input-field:focus {
+    border-color: #0c5a8a;
+  }
+  /* Autofill: match our font/color without blocking focus or editing */
+  .input-field:-webkit-autofill {
+    -webkit-text-fill-color: #111827;
+    font-family: inherit;
+    font-size: 0.875rem;
+    /* Inset overlay to hide browser’s autofill tint; 200px avoids the huge 1000px that can block editing */
+    -webkit-box-shadow: 0 0 0 200px white inset;
+  }
+  .input-field:-webkit-autofill:focus {
+    -webkit-text-fill-color: #111827;
+    -webkit-box-shadow: 0 0 0 200px white inset;
+  }
+  .dark .input-field:-webkit-autofill {
+    -webkit-text-fill-color: #f3f4f6;
+    -webkit-box-shadow: 0 0 0 200px #1f2937 inset;
+  }
+  .dark .input-field:-webkit-autofill:focus {
+    -webkit-text-fill-color: #f3f4f6;
+    -webkit-box-shadow: 0 0 0 200px #1f2937 inset;
   }
   .input-field:hover:not(:focus) {
     border-color: #d1d5db;
   }
+  .dark .input-field:hover:not(:focus) {
+    border-color: #6b7280;
+  }
+
+  /* Auth pages: Forgot Password, Create one, Login, Back to sign in – one place to change all */
+  .auth-link {
+    @apply font-medium underline text-[#073E60] hover:text-[#052d47] dark:text-primary-400 dark:hover:text-primary-300;
+  }
 
   .form-label {
-    @apply block text-sm font-medium text-gray-700 mb-1;
+    @apply block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300;
+  }
+
+  /* Reusable typography – light/dark baked in for easy theme switching */
+  .heading-1 {
+    @apply text-2xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight;
+  }
+  .heading-2 {
+    @apply text-lg font-semibold text-gray-900 dark:text-gray-100;
+  }
+  .heading-3 {
+    @apply text-base font-semibold text-gray-900 dark:text-gray-100;
+  }
+  .body-muted {
+    @apply text-sm text-gray-500 dark:text-gray-400;
+  }
+  .body-secondary {
+    @apply text-sm text-gray-600 dark:text-gray-300;
   }
 
   .badge {
@@ -105,10 +173,16 @@
     font-weight: 600;
     color: #111827;
   }
+  .dark .table-cell-id {
+    color: #f3f4f6;
+  }
   .table-cell-body {
     font-size: 0.875rem;
     font-weight: 400;
     color: #374151;
+  }
+  .dark .table-cell-body {
+    color: #d1d5db;
   }
   .table-header-cell {
     font-size: 0.75rem;
@@ -116,6 +190,9 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #4b5563;
+  }
+  .dark .table-header-cell {
+    color: #9ca3af;
   }
 }
 

@@ -4,11 +4,13 @@ import Layout from '@/components/Layout';
 import DashboardLayout from '@/components/DashboardLayout';
 import Dashboard from '@/components/Dashboard';
 import Invoices from '@/components/Invoices';
+import InvoiceDetail from '@/components/InvoiceDetail';
 import Customers from '@/components/Customers';
 import CreateInvoice from '@/components/CreateInvoice';
 import SalesLedgerLayout from '@/components/SalesLedgerLayout';
 import PurchaseLedgerLayout from '@/components/PurchaseLedgerLayout';
 import Bills from '@/components/Bills';
+import BillDetail from '@/components/BillDetail';
 import Vendors from '@/components/Vendors';
 import Expenses from '@/components/Expenses';
 import Products from '@/components/Products';
@@ -22,28 +24,39 @@ import BankTransactions from '@/components/transactions/BankTransactions';
 import BankReconciliation from '@/components/transactions/BankReconciliation';
 import ReconciliationStarted from '@/components/transactions/ReconciliationStarted';
 import ChartOfAccounts from '@/components/transactions/ChartOfAccounts';
+import TagsPage from '@/components/TagsPage';
+import AuditLogPage from '@/components/settings/AuditLogPage';
+import CoaCategoriesPage from '@/components/settings/CoaCategoriesPage';
+import AcceptInvitationPage from '@/components/AcceptInvitationPage';
 import AccountSettings from '@/components/AccountSettings';
+import AccountSettingsLayout from '@/components/settings/AccountSettingsLayout';
+import AdvancedSettingsLayout from '@/components/settings/AdvancedSettingsLayout';
+import PersonalDetailsPage from '@/components/settings/PersonalDetailsPage';
+import CompanyDetailsPage from '@/components/settings/CompanyDetailsPage';
 import UsersPage from '@/components/UsersPage';
 import IntegrationPage from '@/components/IntegrationPage';
 import Home from '@/components/Home';
 import Login from '@/components/Login';
 import SignUp from '@/components/SignUp';
 import VerifyEmail from '@/components/VerifyEmail';
+import TermsOfServicePage from '@/components/TermsOfServicePage';
 import OnboardingBusinessInfo from '@/components/onboarding/OnboardingBusinessInfo';
 import StartFreeTrial from '@/components/onboarding/StartFreeTrial';
 import ForgotPassword from '@/components/ForgotPassword';
 import ResetPassword from '@/components/ResetPassword';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import NotFound from '@/components/NotFound';
+import { ProfileProvider } from '@/contexts/ProfileContext';
+import { CurrencyProvider } from '@/contexts/CurrencyContext';
 
 const App: React.FC = () => {
   return (
-    <div className='min-h-screen bg-gray-50'>
+    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
       <Routes>
         {/* Auth routes (no auth required) */}
         <Route path='/login' element={<Login />} />
         <Route path='/signup' element={<SignUp />} />
-        <Route path='/verify-email' element={<VerifyEmail />} />
+        <Route path='/otp' element={<VerifyEmail />} />
         <Route
           path='/onboarding/business'
           element={
@@ -62,137 +75,78 @@ const App: React.FC = () => {
         />
         <Route path='/forgot-password' element={<ForgotPassword />} />
         <Route path='/reset-password' element={<ResetPassword />} />
+        <Route path='/accept-invitation' element={<AcceptInvitationPage />} />
 
-        {/* Protected app routes → dashboard */}
+        {/* Single dashboard layout: one mount, profile loaded once and kept in state */}
         <Route
           path='/'
           element={
             <ProtectedRoute>
-              <DashboardLayout>
-                <Dashboard />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path='/home'
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <Dashboard />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Sales ledger: Invoice + Customers (no Overview) */}
-        <Route
-          path='/sales'
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <SalesLedgerLayout />
-              </DashboardLayout>
+              <ProfileProvider>
+                <CurrencyProvider>
+                  <DashboardLayout />
+                </CurrencyProvider>
+              </ProfileProvider>
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to='/sales/invoice' replace />} />
-          <Route path='invoice' element={<Invoices />} />
-          <Route path='invoice/new' element={<CreateInvoice />} />
-          <Route path='customers' element={<Customers />} />
-          <Route path='products' element={<Products />} />
-        </Route>
+          <Route index element={<Dashboard />} />
+          <Route path='home' element={<Dashboard />} />
 
-        {/* Purchase ledger: Bills + Vendor */}
-        <Route
-          path='/purchase'
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <PurchaseLedgerLayout />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Navigate to='/purchase/bills' replace />} />
-          <Route path='bills' element={<Bills />} />
-          <Route path='vendor' element={<Vendors />} />
-          <Route path='expense' element={<Expenses />} />
-        </Route>
+          <Route path='sales' element={<SalesLedgerLayout />}>
+            <Route index element={<Navigate to='invoice' replace />} />
+            <Route path='invoice' element={<Invoices />} />
+            <Route path='invoice/:invoiceId' element={<InvoiceDetail />} />
+            <Route path='invoice/:invoiceId/edit' element={<CreateInvoice />} />
+            <Route path='invoice/new' element={<CreateInvoice />} />
+            <Route path='customers' element={<Customers />} />
+            <Route path='products' element={<Products />} />
+          </Route>
 
-        {/* Reports: Profit & loss, Balance sheet, A/R aging, A/P aging */}
-        <Route
-          path='/reports'
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <ReportsLayout />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        >
-          <Route
-            index
-            element={<Navigate to='/reports/profit-loss' replace />}
-          />
-          <Route path='profit-loss' element={<ReportProfitLoss />} />
-          <Route path='balance-sheet' element={<ReportBalanceSheet />} />
-          <Route path='ar-aging' element={<ReportARAgingSummary />} />
-          <Route path='ap-aging' element={<ReportAPAgingSummary />} />
-        </Route>
+          <Route path='purchase' element={<PurchaseLedgerLayout />}>
+            <Route index element={<Navigate to='bills' replace />} />
+            <Route path='bills' element={<Bills />} />
+            <Route path='bills/:billId' element={<BillDetail />} />
+            <Route path='vendor' element={<Vendors />} />
+            <Route path='expense' element={<Expenses />} />
+          </Route>
 
-        {/* Transactions: Bank transactions, Bank reconciliation, Chart of accounts */}
-        <Route
-          path='/transactions'
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <TransactionsLayout />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        >
-          <Route
-            index
-            element={<Navigate to='/transactions/bank-transactions' replace />}
-          />
-          <Route path='bank-transactions' element={<BankTransactions />} />
-          <Route path='bank-reconciliation' element={<BankReconciliation />} />
-          <Route path='reconcile' element={<ReconciliationStarted />} />
-          <Route path='chart-of-accounts' element={<ChartOfAccounts />} />
-        </Route>
+          <Route path='reports' element={<ReportsLayout />}>
+            <Route index element={<Navigate to='profit-loss' replace />} />
+            <Route path='profit-loss' element={<ReportProfitLoss />} />
+            <Route path='balance-sheet' element={<ReportBalanceSheet />} />
+            <Route path='ar-aging' element={<ReportARAgingSummary />} />
+            <Route path='ap-aging' element={<ReportAPAgingSummary />} />
+          </Route>
 
-        {/* Management: Users, Integration, Settings */}
-        <Route
-          path='/users'
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <UsersPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path='/integration'
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <IntegrationPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path='/settings'
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <AccountSettings />
-              </DashboardLayout>
-            </ProtectedRoute>
-          }
-        />
+          <Route path='transactions' element={<TransactionsLayout />}>
+            <Route
+              index
+              element={<Navigate to='bank-transactions' replace />}
+            />
+            <Route path='bank-transactions' element={<BankTransactions />} />
+            <Route
+              path='bank-reconciliation'
+              element={<BankReconciliation />}
+            />
+            <Route path='reconcile' element={<ReconciliationStarted />} />
+            <Route path='chart-of-accounts' element={<ChartOfAccounts />} />
+          </Route>
+
+          <Route path='users' element={<UsersPage />} />
+          <Route path='integration' element={<IntegrationPage />} />
+          <Route path='settings' element={<AccountSettingsLayout />}>
+            <Route index element={<AccountSettings />} />
+            <Route path='personal' element={<PersonalDetailsPage />} />
+            <Route path='company' element={<CompanyDetailsPage />} />
+            <Route path='audit-log' element={<AuditLogPage />} />
+            <Route path='advanced' element={<AdvancedSettingsLayout />}>
+              <Route index element={<Navigate to='tags' replace />} />
+              <Route path='tags' element={<TagsPage />} />
+              <Route path='coa-categories' element={<CoaCategoriesPage />} />
+            </Route>
+          </Route>
+        </Route>
 
         <Route
           path='/welcome'
@@ -202,7 +156,14 @@ const App: React.FC = () => {
             </Layout>
           }
         />
-        <Route path='/terms' element={<Navigate to='/login' replace />} />
+        <Route
+          path='/terms'
+          element={
+            <Layout>
+              <TermsOfServicePage />
+            </Layout>
+          }
+        />
         <Route path='*' element={<NotFound />} />
       </Routes>
     </div>

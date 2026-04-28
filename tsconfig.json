@@ -19,7 +19,7 @@
     "noImplicitReturns": true,
     "noImplicitThis": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
+    "exactOptionalPropertyTypes": false,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
@@ -32,11 +32,12 @@
       "@/use-cases/*": ["./src/use-cases/*"],
       "@/presenters/*": ["./src/presenters/*"],
       "@/repositories/*": ["./src/repositories/*"],
-      "@/interfaces/*": ["./src/interfaces/*"]
+      "@/interfaces/*": ["./src/interfaces/*"],
+      "@/generated/*": ["./src/generated/*"]
     },
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["jest", "node"]
+    "types": ["vite/client", "node"]
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

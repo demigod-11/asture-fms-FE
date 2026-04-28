@@ -1,11 +1,21 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Receipt, MoreHorizontal } from 'lucide-react';
+import { Receipt, MoreHorizontal } from 'lucide-react';
+import { useQuery } from 'react-query';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useProfile } from '@/contexts/ProfileContext';
 import SelectableDataTable from '@/components/SelectableDataTable';
 import ListPageToolbar from '@/components/ListPageToolbar';
 import PaginationFooter from '@/components/PaginationFooter';
-import BankAccountDropdown, {
-  BANK_ACCOUNTS,
-} from '@/components/transactions/BankAccountDropdown';
+import BankAccountDropdown from '@/components/transactions/BankAccountDropdown';
+import DateFilterDropdown, {
+  getDefaultDateFilterState,
+  type DateFilterState,
+} from '@/components/reports/DateFilterDropdown';
+import { getDateRangeForPreset } from '@/lib/dateFilters';
+import {
+  listBankTransactions,
+  type BankTransactionResponse,
+} from '@/services/bankTransactionsApi';
 
 interface TransactionRow {
   id: string;
@@ -17,51 +27,75 @@ interface TransactionRow {
   credit: string;
 }
 
-/** Transaction data (includes receipt-style entries). */
-const SAMPLE_TRANSACTIONS: TransactionRow[] = [
-  {
-    id: '1',
-    date: '15 Mar 2025',
-    description: 'Tuition payment',
-    customer: 'ABC School',
-    reference: 'BR-001',
-    debit: '',
-    credit: '₦45,000.00',
-  },
-  {
-    id: '2',
-    date: '16 Mar 2025',
-    description: 'Donation',
-    customer: 'John Doe',
-    reference: 'BR-002',
-    debit: '',
-    credit: '₦12,500.00',
-  },
-  {
-    id: '3',
-    date: '18 Mar 2025',
-    description: 'Office supplies',
-    customer: 'XYZ Ltd',
-    reference: 'INV-101',
-    debit: '₦8,200.00',
-    credit: '',
-  },
-];
+function formatDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
-const DEFAULT_ACCOUNT = BANK_ACCOUNTS[0]!;
+function txnToRow(
+  t: BankTransactionResponse,
+  formatCurrency: (n: number) => string
+): TransactionRow {
+  const amount = Number(t.amount ?? 0);
+  return {
+    id: t.id,
+    date: formatDate(t.txn_date),
+    description: t.description ?? '',
+    customer: '',
+    reference: t.reference ?? '',
+    debit: amount < 0 ? formatCurrency(Math.abs(amount)) : '',
+    credit: amount >= 0 ? formatCurrency(amount) : '',
+  };
+}
 
 const BankTransactions: React.FC = () => {
-  const [accountId, setAccountId] = useState(DEFAULT_ACCOUNT.id);
+  const { formatCurrency } = useCurrency();
+  const { profiles } = useProfile();
+  const organisationId = profiles[0]?.organisation_id ?? '';
+
+  const [accountId, setAccountId] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const totalPages = 6;
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const dateRangeLabel = 'May 7, 2024 - Apr 14, 2025';
+  const [dateFilter, setDateFilter] = useState<DateFilterState>(
+    getDefaultDateFilterState()
+  );
+
+  const { date_from, date_to } = getDateRangeForPreset(
+    dateFilter.preset,
+    dateFilter.customFrom,
+    dateFilter.customTo
+  );
+
+  const { data, isLoading, error } = useQuery(
+    ['bank-transactions', organisationId, accountId, page, date_from, date_to],
+    () =>
+      listBankTransactions(organisationId, {
+        page,
+        page_size: 20,
+        bank_account_id: accountId || undefined,
+        from_date: date_from,
+        to_date: date_to,
+      }),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const totalPages = data?.total_pages ?? 0;
+  const rows = useMemo(
+    () => (data?.items ?? []).map(t => txnToRow(t, formatCurrency)),
+    [data, formatCurrency]
+  );
 
   const sortedData = useMemo(() => {
-    if (!sortKey) return SAMPLE_TRANSACTIONS;
-    return [...SAMPLE_TRANSACTIONS].sort((a, b) => {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => {
       const aVal = (a as unknown as Record<string, string>)[sortKey] ?? '';
       const bVal = (b as unknown as Record<string, string>)[sortKey] ?? '';
       const cmp = String(aVal).localeCompare(String(bVal), undefined, {
@@ -69,29 +103,35 @@ const BankTransactions: React.FC = () => {
       });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [sortKey, sortDir]);
-
-  const handleSort = (key: string, dir: 'asc' | 'desc') => {
-    setSortKey(key);
-    setSortDir(dir);
-  };
+  }, [rows, sortKey, sortDir]);
 
   return (
     <div className='space-y-4'>
       <ListPageToolbar
         leftSlot={
-          <BankAccountDropdown value={accountId} onChange={setAccountId} />
+          <BankAccountDropdown
+            value={accountId}
+            onChange={setAccountId}
+            organisationId={organisationId}
+          />
         }
         searchValue={search}
         onSearchChange={setSearch}
         filterLabel='All Transactions'
         rightSlot={
-          <span className='inline-flex items-center gap-2 px-3 py-2.5 text-sm text-gray-600 rounded-xl border border-gray-200 bg-white'>
-            <Calendar className='h-4 w-4 text-gray-400' />
-            {dateRangeLabel}
-          </span>
+          <DateFilterDropdown
+            state={dateFilter}
+            onStateChange={setDateFilter}
+          />
         }
       />
+      {error ? (
+        <p className='text-sm text-red-600 dark:text-red-400'>
+          {error instanceof Error
+            ? error.message
+            : 'Failed to load transactions'}
+        </p>
+      ) : null}
       <SelectableDataTable<TransactionRow>
         data={sortedData}
         getRowId={row => row.id}
@@ -109,26 +149,44 @@ const BankTransactions: React.FC = () => {
           {
             id: 'customer',
             header: 'Customer' as const,
-            cell: (row: TransactionRow) => row.customer,
+            cell: (row: TransactionRow) => row.customer || '—',
           },
           {
             id: 'reference',
             header: 'Reference' as const,
-            cell: (row: TransactionRow) => row.reference,
+            cell: (row: TransactionRow) => row.reference || '—',
           },
           {
             id: 'debit',
             header: 'Debit' as const,
+            headerClassName: 'text-right',
+            cellClassName: 'text-right tabular-nums',
             cell: (row: TransactionRow) => (
-              <span className='text-right tabular-nums block'>{row.debit}</span>
+              <span
+                className={
+                  row.debit
+                    ? 'text-gray-900 dark:text-gray-100'
+                    : 'text-gray-500 dark:text-gray-400'
+                }
+              >
+                {row.debit || '—'}
+              </span>
             ),
           },
           {
             id: 'credit',
             header: 'Credit' as const,
+            headerClassName: 'text-right',
+            cellClassName: 'text-right tabular-nums',
             cell: (row: TransactionRow) => (
-              <span className='text-right tabular-nums block'>
-                {row.credit}
+              <span
+                className={
+                  row.credit
+                    ? 'text-gray-900 dark:text-gray-100'
+                    : 'text-gray-500 dark:text-gray-400'
+                }
+              >
+                {row.credit || '—'}
               </span>
             ),
           },
@@ -137,8 +195,11 @@ const BankTransactions: React.FC = () => {
         tableMinWidth='640px'
         sortKey={sortKey}
         sortDir={sortDir}
-        onSort={handleSort}
-        renderRowActions={_row => (
+        onSort={(key, dir) => {
+          setSortKey(key);
+          setSortDir(dir);
+        }}
+        renderRowActions={() => (
           <div className='flex items-center gap-0.5'>
             <button
               type='button'
@@ -163,6 +224,10 @@ const BankTransactions: React.FC = () => {
             totalPages={totalPages}
             onPageChange={setPage}
           />
+        }
+        isLoading={isLoading}
+        emptyMessage={
+          isLoading ? 'Loading transactions…' : 'No transactions found.'
         }
       />
     </div>

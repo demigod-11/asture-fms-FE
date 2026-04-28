@@ -1,39 +1,22 @@
 import React from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
+import ModuleTabs from '@/components/ModuleTabs';
 
 const PURCHASE_TABS = [
-  { label: 'Bills', path: '/purchase/bills' },
-  { label: 'Vendor', path: '/purchase/vendor' },
-  { label: 'Expense', path: '/purchase/expense' },
+  { label: 'Bills', path: '/purchase/bills', end: true },
+  { label: 'Vendor', path: '/purchase/vendor', end: true },
+  { label: 'Expense', path: '/purchase/expense', end: true },
 ];
 
 const PurchaseLedgerLayout: React.FC = () => {
   return (
     <div className='space-y-5 sm:space-y-6'>
-      <h1 className='text-2xl font-semibold text-gray-900 tracking-tight'>
-        Purchase Ledger
-      </h1>
-      <nav
-        className='flex gap-0.5 border-b border-gray-200/90'
-        aria-label='Purchase ledger sections'
-      >
-        {PURCHASE_TABS.map(tab => (
-          <NavLink
-            key={tab.path}
-            to={tab.path}
-            end
-            className={({ isActive }) =>
-              `px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px rounded-t-lg ${
-                isActive
-                  ? 'border-primary-600 text-primary-600 bg-primary-50/30'
-                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
-              }`
-            }
-          >
-            {tab.label}
-          </NavLink>
-        ))}
-      </nav>
+      <h1 className='heading-1'>Purchase Ledger</h1>
+      <ModuleTabs
+        variant='router'
+        tabs={PURCHASE_TABS}
+        ariaLabel='Purchase ledger sections'
+      />
       <Outlet />
     </div>
   );

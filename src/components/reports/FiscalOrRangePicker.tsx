@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, ChevronDown } from 'lucide-react';
 import DateRangePicker from './DateRangePicker';
+import { formatCustomRangeDisplay } from '@/lib/dateFilters';
 
 const FISCAL_OPTIONS = [
   { value: 'last-year', label: 'Last fiscal year' },
@@ -8,18 +9,6 @@ const FISCAL_OPTIONS = [
   { value: 'last-quarter', label: 'Last quarter' },
   { value: 'custom', label: 'Custom' },
 ];
-
-function formatRangeDisplay(from: string, to: string): string {
-  if (!from || !to) return 'Select dates';
-  const f = new Date(from);
-  const t = new Date(to);
-  const opts: Intl.DateTimeFormatOptions = {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  };
-  return `${f.toLocaleDateString('en-GB', opts)} – ${t.toLocaleDateString('en-GB', opts)}`;
-}
 
 interface FiscalOrRangePickerProps {
   fiscalPeriod: string;
@@ -49,7 +38,7 @@ const FiscalOrRangePicker: React.FC<FiscalOrRangePickerProps> = ({
   const hasRange = isCustom && customFrom && customTo;
   const displayLabel =
     isCustom && hasRange
-      ? formatRangeDisplay(customFrom, customTo)
+      ? formatCustomRangeDisplay(customFrom, customTo)
       : (FISCAL_OPTIONS.find(o => o.value === fiscalPeriod)?.label ??
         'Select period');
 
@@ -67,20 +56,26 @@ const FiscalOrRangePicker: React.FC<FiscalOrRangePickerProps> = ({
       <button
         type='button'
         onClick={() => setOpen(o => !o)}
-        className='input-field py-2.5 pl-3 pr-10 text-sm rounded-xl border border-gray-200 min-w-[220px] bg-white text-left flex items-center gap-2'
+        className='input-field py-2.5 pl-3 pr-10 text-sm rounded-xl border border-gray-200 dark:border-gray-600 min-w-[220px] bg-white dark:bg-gray-800 text-left flex items-center gap-2 text-gray-900 dark:text-gray-100'
         aria-label='Fiscal period or date range'
         aria-expanded={open}
       >
-        <Calendar className='h-4 w-4 text-gray-400 shrink-0' />
-        <span className={hasRange ? 'text-gray-900' : 'text-gray-500'}>
+        <Calendar className='h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0' />
+        <span
+          className={
+            hasRange
+              ? 'text-gray-900 dark:text-gray-100'
+              : 'text-gray-500 dark:text-gray-400'
+          }
+        >
           {displayLabel}
         </span>
-        <ChevronDown className='absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none' />
+        <ChevronDown className='absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none' />
       </button>
 
       {open && (
-        <div className='absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-[220px]'>
-          <div className='p-2 border-b border-gray-100'>
+        <div className='absolute top-full left-0 mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg overflow-hidden min-w-[220px]'>
+          <div className='p-2 border-b border-gray-100 dark:border-gray-700'>
             {FISCAL_OPTIONS.map(opt => (
               <button
                 key={opt.value}
@@ -89,7 +84,7 @@ const FiscalOrRangePicker: React.FC<FiscalOrRangePickerProps> = ({
                   onFiscalChange(opt.value);
                   if (opt.value !== 'custom') setOpen(false);
                 }}
-                className={`w-full px-3 py-2 text-left text-sm rounded-lg hover:bg-gray-50 ${fiscalPeriod === opt.value ? 'bg-primary-50 text-[#073E60] font-medium' : 'text-gray-700'}`}
+                className={`w-full px-3 py-2 text-left text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 ${fiscalPeriod === opt.value ? 'bg-primary-50 dark:bg-primary-900/40 text-[#073E60] dark:text-primary-400 font-medium' : 'text-gray-700 dark:text-gray-200'}`}
               >
                 {opt.label}
               </button>

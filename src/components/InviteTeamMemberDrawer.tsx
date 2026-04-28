@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown } from 'lucide-react';
 import {
@@ -8,6 +8,7 @@ import {
   type RoleDef,
   type PermissionId,
 } from '@/lib/rolesAndPermissions';
+import type { RoleResponse } from '@/services/rolesApi';
 
 interface InviteTeamMemberDrawerProps {
   open: boolean;
@@ -20,6 +21,8 @@ interface InviteTeamMemberDrawerProps {
   ) => void;
   customRoles: RoleDef[];
   onAddCustomRole?: (role: RoleDef) => void;
+  /** When provided, role dropdown uses API roles (roleId = UUID). */
+  apiRoles?: RoleResponse[];
 }
 
 const ROLE_OPTIONS = DEFAULT_ROLES.map(r => ({ value: r.id, label: r.label }));
@@ -43,26 +46,35 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
   onInvite,
   customRoles,
   onAddCustomRole,
+  apiRoles = [],
 }) => {
   const [committedEmails, setCommittedEmails] = useState<string[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const [roleId, setRoleId] = useState<string>('user');
+  const defaultRoleId = apiRoles.length > 0 ? apiRoles[0]!.id : 'user';
+  const [roleId, setRoleId] = useState<string>(defaultRoleId);
   const [roleOpen, setRoleOpen] = useState(false);
   const [customRoleName, setCustomRoleName] = useState('');
   const [customPerms, setCustomPerms] = useState<PermissionId[]>([]);
   const [expiresAt, setExpiresAt] = useState('');
   const [showCustomPerms, setShowCustomPerms] = useState(false);
 
-  const isCustom = roleId === 'custom';
-  const selectedRoleLabel =
-    ROLE_OPTIONS.find(r => r.value === roleId)?.label ??
-    customRoles.find(r => r.id === roleId)?.label ??
-    (isCustom ? customRoleName.trim() || 'Create custom role' : 'User');
-  const roleOptionsForDropdown = [
-    ...ROLE_OPTIONS,
-    ...customRoles.map(r => ({ value: r.id, label: r.label })),
-    { value: 'custom', label: '+ Create custom role' },
-  ];
+  const useApiRoles = apiRoles.length > 0;
+  useEffect(() => {
+    if (open && useApiRoles && apiRoles[0]) setRoleId(apiRoles[0].id);
+  }, [open, useApiRoles, apiRoles]);
+  const isCustom = !useApiRoles && roleId === 'custom';
+  const selectedRoleLabel = useApiRoles
+    ? (apiRoles.find(r => r.id === roleId)?.display_name ?? roleId)
+    : (ROLE_OPTIONS.find(r => r.value === roleId)?.label ??
+      customRoles.find(r => r.id === roleId)?.label ??
+      (isCustom ? customRoleName.trim() || 'Create custom role' : 'User'));
+  const roleOptionsForDropdown = useApiRoles
+    ? apiRoles.map(r => ({ value: r.id, label: r.display_name }))
+    : [
+        ...ROLE_OPTIONS,
+        ...customRoles.map(r => ({ value: r.id, label: r.label })),
+        { value: 'custom', label: '+ Create custom role' },
+      ];
 
   const handleRoleSelect = (id: string) => {
     setRoleId(id);
@@ -169,19 +181,22 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
         aria-hidden
       />
       <div
-        className='fixed top-0 right-0 bottom-0 z-[101] w-full max-w-lg bg-white shadow-xl flex flex-col overflow-hidden'
+        className='fixed top-0 right-0 bottom-0 z-[101] w-full max-w-lg bg-white dark:bg-gray-800 shadow-xl flex flex-col overflow-hidden'
         role='dialog'
         aria-modal='true'
         aria-labelledby='invite-title'
       >
-        <div className='flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0'>
-          <h2 id='invite-title' className='text-lg font-semibold text-gray-900'>
+        <div className='flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0'>
+          <h2
+            id='invite-title'
+            className='text-lg font-semibold text-gray-900 dark:text-gray-100'
+          >
             Invite team member
           </h2>
           <button
             type='button'
             onClick={handleClose}
-            className='p-2 text-gray-500 hover:bg-gray-100 rounded-lg'
+            className='p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg'
             aria-label='Close'
           >
             <X className='h-5 w-5' />
@@ -193,23 +208,26 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
           className='flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-5'
         >
           <div>
-            <label htmlFor='invite-email' className='form-label text-gray-900'>
+            <label
+              htmlFor='invite-email'
+              className='form-label text-gray-900 dark:text-gray-100'
+            >
               Email <span className='text-red-500'>*</span>
             </label>
             <div
               id='invite-email'
-              className='input-field min-h-[48px] flex flex-wrap items-center gap-2 py-2 pl-3 pr-3 rounded-xl border border-gray-200 focus-within:ring-2 focus-within:ring-primary-500/25 focus-within:border-primary-500'
+              className='input-field min-h-[48px] flex flex-wrap items-center gap-2 py-2 pl-3 pr-3 rounded-xl border border-gray-200 dark:border-gray-600 focus-within:ring-2 focus-within:ring-primary-500/25 focus-within:border-primary-500'
             >
               {committedEmails.map(addr => (
                 <span
                   key={addr}
-                  className='inline-flex items-center gap-1.5 rounded-lg bg-primary-50 border border-primary-200 px-2.5 py-1.5 text-sm font-medium text-primary-800'
+                  className='inline-flex items-center gap-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/40 border border-primary-200 dark:border-primary-700 px-2.5 py-1.5 text-sm font-medium text-primary-800 dark:text-primary-200'
                 >
                   {addr}
                   <button
                     type='button'
                     onClick={() => removeCommittedEmail(addr)}
-                    className='p-0.5 rounded hover:bg-primary-100 text-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500/50'
+                    className='p-0.5 rounded hover:bg-primary-100 dark:hover:bg-primary-800 text-primary-600 dark:text-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-500/50'
                     aria-label={`Remove ${addr}`}
                   >
                     <X className='h-3.5 w-3.5' />
@@ -227,45 +245,47 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
                     ? 'colleague@company.com, other@company.com'
                     : 'Add another email...'
                 }
-                className='flex-1 min-w-[140px] py-1.5 bg-transparent border-0 focus:outline-none focus:ring-0 text-gray-900 placeholder-gray-400 text-sm'
+                className='flex-1 min-w-[140px] py-1.5 bg-transparent border-0 focus:outline-none focus:ring-0 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 text-sm'
               />
             </div>
-            <p className='mt-1.5 text-xs text-gray-500'>
+            <p className='mt-1.5 text-xs text-gray-500 dark:text-gray-400'>
               Type an email and add a comma to lock it in. All get the same
               role.
             </p>
           </div>
 
           <div>
-            <label className='form-label text-gray-900'>Role</label>
+            <label className='form-label text-gray-900 dark:text-gray-100'>
+              Role
+            </label>
             <div className='relative'>
               <button
                 type='button'
                 onClick={() => setRoleOpen(!roleOpen)}
-                className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 flex items-center justify-between text-left'
+                className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between text-left'
               >
                 <span
                   className={
                     selectedRoleLabel.startsWith('+')
-                      ? 'text-[#073E60]'
-                      : 'text-gray-900'
+                      ? 'text-[#073E60] dark:text-primary-400'
+                      : 'text-gray-900 dark:text-gray-100'
                   }
                 >
                   {selectedRoleLabel}
                 </span>
-                <ChevronDown className='h-4 w-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2' />
+                <ChevronDown className='h-4 w-4 text-gray-400 dark:text-gray-500 absolute right-3 top-1/2 -translate-y-1/2' />
               </button>
               {roleOpen && (
-                <div className='absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg py-1 max-h-60 overflow-y-auto'>
+                <div className='absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg py-1 max-h-60 overflow-y-auto'>
                   {roleOptionsForDropdown.map(r => (
                     <button
                       key={r.value}
                       type='button'
                       onClick={() => handleRoleSelect(r.value)}
-                      className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 ${
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${
                         r.label.startsWith('+')
-                          ? 'text-[#073E60] font-medium'
-                          : 'text-gray-900'
+                          ? 'text-[#073E60] dark:text-primary-400 font-medium'
+                          : 'text-gray-900 dark:text-gray-100'
                       }`}
                     >
                       {r.label}
@@ -281,7 +301,7 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
               <div>
                 <label
                   htmlFor='custom-role-name'
-                  className='form-label text-gray-900'
+                  className='form-label text-gray-900 dark:text-gray-100'
                 >
                   Custom role name
                 </label>
@@ -291,10 +311,12 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
                   value={customRoleName}
                   onChange={e => setCustomRoleName(e.target.value)}
                   placeholder='e.g. Accountant'
-                  className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200'
+                  className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
                 />
               </div>
-              <p className='text-sm font-medium text-gray-700'>Permissions</p>
+              <p className='text-sm font-medium text-gray-700 dark:text-gray-200'>
+                Permissions
+              </p>
               <div className='space-y-4'>
                 {(
                   Object.keys(GROUP_LABELS) as Array<keyof typeof GROUP_LABELS>
@@ -304,34 +326,34 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
                   return (
                     <div
                       key={groupKey}
-                      className='rounded-xl border border-gray-200 bg-gray-50/50 overflow-hidden'
+                      className='rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-700/30 overflow-hidden'
                     >
-                      <div className='px-3 py-2 bg-white border-b border-gray-200'>
-                        <span className='text-sm font-semibold text-gray-900'>
+                      <div className='px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600'>
+                        <span className='text-sm font-semibold text-gray-900 dark:text-gray-100'>
                           {GROUP_LABELS[groupKey]}
                         </span>
                       </div>
-                      <ul className='divide-y divide-gray-100'>
+                      <ul className='divide-y divide-gray-100 dark:divide-gray-600'>
                         {perms.map(p => (
                           <li
                             key={p.id}
-                            className='flex items-start gap-3 px-3 py-2.5 hover:bg-white/60'
+                            className='flex items-start gap-3 px-3 py-2.5 hover:bg-white/60 dark:hover:bg-gray-700/60'
                           >
                             <input
                               type='checkbox'
                               id={`perm-${p.id}`}
                               checked={customPerms.includes(p.id)}
                               onChange={() => togglePermission(p.id)}
-                              className='mt-1 rounded border-gray-300 accent-[#073E60]'
+                              className='mt-1 rounded border-gray-300 dark:border-gray-500 accent-[#073E60]'
                             />
                             <label
                               htmlFor={`perm-${p.id}`}
                               className='flex-1 min-w-0 cursor-pointer'
                             >
-                              <span className='text-sm font-medium text-gray-900'>
+                              <span className='text-sm font-medium text-gray-900 dark:text-gray-100'>
                                 {p.label}
                               </span>
-                              <p className='text-xs text-gray-500 mt-0.5'>
+                              <p className='text-xs text-gray-500 dark:text-gray-400 mt-0.5'>
                                 {p.description}
                               </p>
                             </label>
@@ -348,7 +370,7 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
           <div>
             <label
               htmlFor='invite-expires'
-              className='form-label text-gray-900'
+              className='form-label text-gray-900 dark:text-gray-100'
             >
               Expiration date (optional)
             </label>
@@ -357,16 +379,16 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
               type='date'
               value={expiresAt}
               onChange={e => setExpiresAt(e.target.value)}
-              className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200'
+              className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600'
             />
           </div>
         </form>
 
-        <div className='px-4 py-3 border-t border-gray-200 flex justify-end gap-3 shrink-0 bg-white'>
+        <div className='px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0 bg-white dark:bg-gray-800'>
           <button
             type='button'
             onClick={handleClose}
-            className='px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl'
+            className='px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl'
           >
             Cancel
           </button>

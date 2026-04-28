@@ -66,7 +66,7 @@ const ReportToolbar: React.FC<ReportToolbarProps> = ({
     <div className='flex flex-wrap items-center gap-3'>
       {showSearch && (
         <div className='relative flex-1 min-w-[200px] max-w-xs'>
-          <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
+          <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500' />
           <input
             type='search'
             placeholder='Search...'
@@ -99,7 +99,7 @@ const ReportToolbar: React.FC<ReportToolbarProps> = ({
                   onChange={e => update({ compareEnabled: e.target.checked })}
                   className='rounded border-gray-300 accent-[#073E60] text-[#073E60] focus:ring-2 focus:ring-[#073E60]'
                 />
-                <span className='text-sm font-medium text-gray-700'>
+                <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>
                   Compare with another period
                 </span>
               </label>
@@ -133,7 +133,7 @@ const ReportToolbar: React.FC<ReportToolbarProps> = ({
       <TooltipButton
         title='Print'
         ariaLabel='Print'
-        className='p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors shrink-0'
+        className='p-2.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors shrink-0'
       >
         <Printer className='h-5 w-5' />
       </TooltipButton>

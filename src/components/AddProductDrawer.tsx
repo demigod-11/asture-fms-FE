@@ -2,29 +2,77 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown } from 'lucide-react';
 
+export interface AddProductPayload {
+  name: string;
+  code?: string | undefined;
+  description?: string | undefined;
+  price?: string | undefined;
+  status?: 'active' | 'inactive' | undefined;
+}
+
+export interface EditProductInitial {
+  id: string;
+  name: string;
+  code: string;
+  description: string;
+  price: string;
+  status: 'active' | 'inactive';
+}
+
 interface AddProductDrawerProps {
   open: boolean;
   onClose: () => void;
-  onSaved?: () => void;
+  /** When set, drawer is in edit mode (prefilled, title "Edit product"). */
+  initialProduct?: EditProductInitial | null;
+  onSaved?: (payload: AddProductPayload, editId?: string) => void;
+  isSaving?: boolean;
+  saveError?: string | undefined;
 }
-
-const PRODUCT_TYPES = ['Recurring Fee', 'One-Off Fee'];
 
 const AddProductDrawer: React.FC<AddProductDrawerProps> = ({
   open,
   onClose,
+  initialProduct,
   onSaved,
+  isSaving = false,
+  saveError,
 }) => {
   const [name, setName] = useState('');
-  const [productType, setProductType] = useState('');
+  const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
-  const [basePriceUsd, setBasePriceUsd] = useState('');
-  const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
+  const [price, setPrice] = useState('0');
+  const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+
+  const isEdit = Boolean(initialProduct?.id);
+  React.useEffect(() => {
+    if (open && initialProduct) {
+      setName(initialProduct.name);
+      setCode(initialProduct.code);
+      setDescription(initialProduct.description);
+      setPrice(initialProduct.price);
+      setStatus(initialProduct.status);
+    } else if (open && !initialProduct) {
+      setName('');
+      setCode('');
+      setDescription('');
+      setPrice('0');
+      setStatus('active');
+    }
+  }, [open, initialProduct]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSaved?.();
-    onClose();
+    onSaved?.(
+      {
+        name,
+        code: code.trim() || undefined,
+        description: description.trim() || undefined,
+        price: price.trim() || '0',
+        status,
+      },
+      isEdit ? initialProduct!.id : undefined
+    );
   };
 
   if (!open) return null;
@@ -37,22 +85,22 @@ const AddProductDrawer: React.FC<AddProductDrawerProps> = ({
         aria-hidden
       />
       <div
-        className='fixed top-0 right-0 bottom-0 z-[101] w-full max-w-md bg-white shadow-xl flex flex-col overflow-hidden'
+        className='fixed top-0 right-0 bottom-0 z-[101] w-full max-w-md bg-white dark:bg-gray-800 shadow-xl flex flex-col overflow-hidden'
         role='dialog'
         aria-modal='true'
         aria-labelledby='add-product-title'
       >
-        <div className='flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0'>
+        <div className='flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0'>
           <h2
             id='add-product-title'
-            className='text-lg font-semibold text-gray-900'
+            className='text-lg font-semibold text-gray-900 dark:text-gray-100'
           >
-            Add product
+            {isEdit ? 'Edit product' : 'Add product'}
           </h2>
           <button
             type='button'
             onClick={onClose}
-            className='p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors'
+            className='p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors'
             aria-label='Close'
           >
             <X className='h-5 w-5' />
@@ -64,7 +112,10 @@ const AddProductDrawer: React.FC<AddProductDrawerProps> = ({
           className='flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4'
         >
           <div>
-            <label htmlFor='product-name' className='form-label text-gray-900'>
+            <label
+              htmlFor='product-name'
+              className='form-label text-gray-900 dark:text-gray-100'
+            >
               Name <span className='text-error-500'>*</span>
             </label>
             <input
@@ -73,55 +124,34 @@ const AddProductDrawer: React.FC<AddProductDrawerProps> = ({
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder='e.g. Consulting Fee'
-              className='input-field pl-3 py-3 rounded-xl border border-gray-200'
+              className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
               required
             />
           </div>
 
           <div>
-            <label htmlFor='product-type' className='form-label text-gray-900'>
-              Product Type
+            <label
+              htmlFor='product-code'
+              className='form-label text-gray-900 dark:text-gray-100'
+            >
+              Code
             </label>
-            <div className='relative'>
-              <button
-                type='button'
-                id='product-type'
-                onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
-                className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 flex items-center justify-between text-left'
-              >
-                <span
-                  className={productType ? 'text-gray-900' : 'text-gray-500'}
-                >
-                  {productType || 'Select type'}
-                </span>
-                <ChevronDown className='h-4 w-4 text-gray-400 shrink-0' />
-              </button>
-              {typeDropdownOpen && (
-                <div className='absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg py-1'>
-                  {PRODUCT_TYPES.map(type => (
-                    <button
-                      key={type}
-                      type='button'
-                      onClick={() => {
-                        setProductType(type);
-                        setTypeDropdownOpen(false);
-                      }}
-                      className='w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50'
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <input
+              id='product-code'
+              type='text'
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              placeholder='e.g. CONSULT-001'
+              className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
+            />
           </div>
 
           <div>
             <label
               htmlFor='product-description'
-              className='form-label text-gray-900'
+              className='form-label text-gray-900 dark:text-gray-100'
             >
-              Product Description
+              Description
             </label>
             <textarea
               id='product-description'
@@ -129,42 +159,91 @@ const AddProductDrawer: React.FC<AddProductDrawerProps> = ({
               onChange={e => setDescription(e.target.value)}
               placeholder='Enter product description...'
               rows={3}
-              className='input-field pl-3 py-3 rounded-xl border border-gray-200 resize-none'
+              className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 resize-none placeholder-gray-500 dark:placeholder-gray-400'
             />
           </div>
 
           <div>
-            <label htmlFor='base-price' className='form-label text-gray-900'>
-              Base Price (₦) <span className='text-error-500'>*</span>
+            <label
+              htmlFor='product-price'
+              className='form-label text-gray-900 dark:text-gray-100'
+            >
+              Price
             </label>
             <input
-              id='base-price'
+              id='product-price'
               type='number'
               min='0'
               step='0.01'
-              value={basePriceUsd}
-              onChange={e => setBasePriceUsd(e.target.value)}
+              value={price}
+              onChange={e => setPrice(e.target.value)}
               placeholder='0.00'
-              className='input-field pl-3 py-3 rounded-xl border border-gray-200'
-              required
+              className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
             />
           </div>
+
+          <div>
+            <label
+              htmlFor='product-status'
+              className='form-label text-gray-900 dark:text-gray-100'
+            >
+              Status
+            </label>
+            <div className='relative'>
+              <button
+                type='button'
+                id='product-status'
+                onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+                className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between text-left'
+              >
+                <span className='text-gray-900 dark:text-gray-100 capitalize'>
+                  {status}
+                </span>
+                <ChevronDown className='h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0' />
+              </button>
+              {statusDropdownOpen && (
+                <div className='absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1'>
+                  {(['active', 'inactive'] as const).map(s => (
+                    <button
+                      key={s}
+                      type='button'
+                      onClick={() => {
+                        setStatus(s);
+                        setStatusDropdownOpen(false);
+                      }}
+                      className='w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 capitalize'
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {saveError && (
+            <p className='text-sm text-red-600 dark:text-red-400'>
+              {saveError}
+            </p>
+          )}
         </form>
 
-        <div className='px-4 py-3 pb-6 border-t border-gray-200 flex justify-end gap-3 shrink-0 bg-white'>
+        <div className='px-4 py-3 pb-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0 bg-white dark:bg-gray-800'>
           <button
             type='button'
             onClick={onClose}
-            className='px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors'
+            disabled={isSaving}
+            className='px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl transition-colors disabled:opacity-50'
           >
             Cancel
           </button>
           <button
             type='submit'
             onClick={handleSubmit}
-            className='px-4 py-2.5 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl transition-colors'
+            disabled={isSaving}
+            className='px-4 py-2.5 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl transition-colors disabled:opacity-50'
           >
-            Add product
+            {isSaving ? 'Saving…' : isEdit ? 'Save changes' : 'Add product'}
           </button>
         </div>
       </div>

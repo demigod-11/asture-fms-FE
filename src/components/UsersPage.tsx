@@ -1,11 +1,25 @@
 import React, { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
 import ListPageToolbar from '@/components/ListPageToolbar';
+import ModuleTabs from '@/components/ModuleTabs';
 import SelectableDataTable from '@/components/SelectableDataTable';
 import InviteTeamMemberDrawer from '@/components/InviteTeamMemberDrawer';
-import EditRoleDrawer from '@/components/EditRoleDrawer';
+import EditRoleDrawer, {
+  type ApiPermission,
+} from '@/components/EditRoleDrawer';
+import { useProfile } from '@/contexts/ProfileContext';
+import { listOrgMembers } from '@/services/authApi';
+import {
+  listInvitations,
+  createInvitation,
+  resendInvitation,
+  cancelInvitation,
+} from '@/services/invitationsApi';
+import { listRoles, updateRole, deleteRole } from '@/services/rolesApi';
 import {
   DEFAULT_ROLES,
   getRolePermissions,
+  hasPermission,
   type RoleDef,
   type PermissionId,
 } from '@/lib/rolesAndPermissions';
@@ -36,54 +50,6 @@ export interface Invitation {
   expiresAt?: string;
 }
 
-const INITIAL_MEMBERS: TeamMember[] = [
-  {
-    id: '1',
-    name: 'Jane Doe',
-    email: 'jane@company.com',
-    role: 'admin',
-    roleLabel: 'Admin',
-    joinedAt: 'Jan 15, 2025',
-  },
-  {
-    id: '2',
-    name: 'John Smith',
-    email: 'john@company.com',
-    role: 'user',
-    roleLabel: 'User',
-    joinedAt: 'Feb 1, 2025',
-  },
-];
-
-const INITIAL_INVITATIONS: Invitation[] = [
-  {
-    id: 'inv1',
-    email: 'new@company.com',
-    roleId: 'user',
-    roleLabel: 'User',
-    status: 'pending',
-    sentAt: 'Mar 20, 2025',
-    expiresAt: '2025-04-20',
-  },
-  {
-    id: 'inv2',
-    email: 'declined@company.com',
-    roleId: 'user',
-    roleLabel: 'User',
-    status: 'declined',
-    sentAt: 'Mar 18, 2025',
-  },
-  {
-    id: 'inv3',
-    email: 'expired@company.com',
-    roleId: 'admin',
-    roleLabel: 'Admin',
-    status: 'expired',
-    sentAt: 'Mar 1, 2025',
-    expiresAt: '2025-03-15',
-  },
-];
-
 const STATUS_LABELS: Record<InvitationStatus, string> = {
   pending: 'Pending',
   accepted: 'Accepted',
@@ -111,13 +77,39 @@ interface RoleRow {
 }
 
 const UsersPage: React.FC = () => {
+  const { profiles } = useProfile();
+  const organisationId = profiles[0]?.organisation_id ?? '';
+  const queryClient = useQueryClient();
+
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<Tab>('members');
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [members] = useState<TeamMember[]>(INITIAL_MEMBERS);
-  const [invitations, setInvitations] =
-    useState<Invitation[]>(INITIAL_INVITATIONS);
+  const [invPage] = useState(1);
   const [customRoles, setCustomRoles] = useState<RoleDef[]>([]);
+
+  const { data: orgMembersData } = useQuery(
+    ['org-members', organisationId],
+    () => listOrgMembers(organisationId),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const members: TeamMember[] = useMemo(() => {
+    const list = orgMembersData ?? [];
+    return list.map(m => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      role: m.role_id,
+      roleLabel: m.role_name,
+      joinedAt: m.joined_at
+        ? new Date(m.joined_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          })
+        : '',
+    }));
+  }, [orgMembersData]);
   const [roleOverrides, setRoleOverrides] = useState<
     Record<string, PermissionId[]>
   >({});
@@ -125,6 +117,137 @@ const UsersPage: React.FC = () => {
   const [editingRole, setEditingRole] = useState<RoleRow | null>(null);
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const { data: invitationsData } = useQuery(
+    ['invitations', organisationId, invPage],
+    () => listInvitations(organisationId, { page: invPage, page_size: 50 }),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const { data: apiRoles = [] } = useQuery(
+    ['roles', organisationId],
+    () => listRoles(organisationId),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const allApiPermissions = useMemo((): ApiPermission[] => {
+    const seen = new Set<string>();
+    const out: ApiPermission[] = [];
+    apiRoles.forEach(r => {
+      r.permissions?.forEach((p: { id: string; name: string }) => {
+        if (p?.id && !seen.has(p.id)) {
+          seen.add(p.id);
+          out.push({ id: p.id, name: p.name ?? p.id });
+        }
+      });
+    });
+    return out;
+  }, [apiRoles]);
+
+  const updateRoleMutation = useMutation(
+    ({ roleId, permissionIds }: { roleId: string; permissionIds: string[] }) =>
+      updateRole(organisationId, roleId, { permission_ids: permissionIds }),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['roles', organisationId]);
+        setEditRoleOpen(false);
+        setEditingRole(null);
+      },
+    }
+  );
+
+  const deleteRoleMutation = useMutation(
+    (roleId: string) => deleteRole(organisationId, roleId),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['roles', organisationId]);
+        setEditRoleOpen(false);
+        setEditingRole(null);
+      },
+    }
+  );
+
+  const createInvMutation = useMutation(
+    (body: { email: string; role_id: string; expires_in_days?: number }) =>
+      createInvitation(organisationId, {
+        email: body.email,
+        role_id: body.role_id,
+        expires_in_days: body.expires_in_days ?? 7,
+      }),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['invitations', organisationId]);
+        setInviteOpen(false);
+      },
+    }
+  );
+
+  const resendInvMutation = useMutation(
+    (invitationId: string) => resendInvitation(organisationId, invitationId),
+    {
+      onSuccess: () =>
+        queryClient.invalidateQueries(['invitations', organisationId]),
+    }
+  );
+
+  const cancelInvMutation = useMutation(
+    (invitationId: string) => cancelInvitation(organisationId, invitationId),
+    {
+      onSuccess: () =>
+        queryClient.invalidateQueries(['invitations', organisationId]),
+    }
+  );
+
+  const rolesMap = useMemo(() => {
+    const m = new Map<string, string>();
+    apiRoles.forEach(r => m.set(r.id, r.display_name));
+    return m;
+  }, [apiRoles]);
+
+  /** Custom roles from API (non-default) for permission resolution. */
+  const customRolesFromApi: RoleDef[] = useMemo(
+    () =>
+      apiRoles
+        .filter(r => !r.is_default_role)
+        .map(r => ({
+          id: r.id,
+          label: r.display_name ?? r.name,
+          description: r.description ?? '',
+          permissions: (r.permissions?.map(p => p.name) ??
+            []) as PermissionId[],
+        })),
+    [apiRoles]
+  );
+
+  const currentUserRoleId = profiles[0]?.role_id ?? '';
+  const canManageTeam = hasPermission(
+    currentUserRoleId,
+    'team:manage',
+    customRolesFromApi
+  );
+
+  const invitations: Invitation[] = useMemo(() => {
+    const items = invitationsData?.items ?? [];
+    return items.map(inv => {
+      const base = {
+        id: inv.id,
+        email: inv.email,
+        roleId: inv.role_id,
+        roleLabel: rolesMap.get(inv.role_id) ?? inv.role_id,
+        status: inv.status as InvitationStatus,
+        sentAt: inv.invited_at
+          ? new Date(inv.invited_at).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })
+          : '',
+      };
+      return inv.expires_at
+        ? { ...base, expiresAt: inv.expires_at.slice(0, 10) }
+        : base;
+    });
+  }, [invitationsData?.items, rolesMap]);
 
   const handleSort = (key: string, dir: 'asc' | 'desc') => {
     setSortKey(key);
@@ -137,25 +260,20 @@ const UsersPage: React.FC = () => {
     _customRole?: RoleDef,
     expiresAt?: string
   ) => {
-    const roleLabel =
-      [...DEFAULT_ROLES, ...customRoles].find(r => r.id === roleId)?.label ??
-      roleId;
-    setInvitations(prev => [
-      ...prev,
-      {
-        id: `inv-${Date.now()}`,
-        email,
-        roleId,
-        roleLabel,
-        status: 'pending' as const,
-        sentAt: new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-        }),
-        ...(expiresAt ? { expiresAt } : {}),
-      },
-    ]);
+    const expires_in_days = expiresAt
+      ? Math.max(
+          1,
+          Math.min(
+            30,
+            Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000)
+          )
+        )
+      : 7;
+    createInvMutation.mutate({
+      email,
+      role_id: roleId,
+      expires_in_days: Number.isNaN(expires_in_days) ? 7 : expires_in_days,
+    });
   };
 
   const handleAddCustomRole = (role: RoleDef) => {
@@ -163,15 +281,11 @@ const UsersPage: React.FC = () => {
   };
 
   const handleResend = (id: string) => {
-    setInvitations(prev =>
-      prev.map(i => (i.id === id ? { ...i, status: 'pending' as const } : i))
-    );
+    resendInvMutation.mutate(id);
   };
 
   const handleCancel = (id: string) => {
-    setInvitations(prev =>
-      prev.map(i => (i.id === id ? { ...i, status: 'cancelled' as const } : i))
-    );
+    cancelInvMutation.mutate(id);
   };
 
   const filteredMembers = useMemo(() => {
@@ -225,22 +339,14 @@ const UsersPage: React.FC = () => {
   }, [filteredInvitations]);
 
   const rolesList: RoleRow[] = useMemo(() => {
-    const defaults: RoleRow[] = DEFAULT_ROLES.map(r => ({
+    return apiRoles.map(r => ({
       id: r.id,
-      label: r.label,
-      description: r.description,
-      type: 'default',
-      isDefault: true,
+      label: r.display_name,
+      description: r.description ?? '',
+      type: r.is_system_role ? 'default' : 'custom',
+      isDefault: r.is_default_role,
     }));
-    const customs: RoleRow[] = customRoles.map(r => ({
-      id: r.id,
-      label: r.label,
-      description: r.description || 'Custom role',
-      type: 'custom',
-      isDefault: false,
-    }));
-    return [...defaults, ...customs];
-  }, [customRoles]);
+  }, [apiRoles]);
 
   const sortedRolesList = useMemo(() => {
     if (!sortKey) return rolesList;
@@ -286,6 +392,10 @@ const UsersPage: React.FC = () => {
   };
 
   const handleDeleteRole = (roleId: string) => {
+    if (apiRoles.length > 0) {
+      deleteRoleMutation.mutate(roleId);
+      return;
+    }
     setCustomRoles(prev => prev.filter(r => r.id !== roleId));
     setEditRoleOpen(false);
     setEditingRole(null);
@@ -414,38 +524,31 @@ const UsersPage: React.FC = () => {
       },
     ];
 
+  const userTabs = [
+    { id: 'members' as const, label: 'Team members' },
+    { id: 'invitations' as const, label: 'Invitations' },
+    { id: 'roles' as const, label: 'Roles' },
+  ];
+
   return (
     <div className='space-y-5 sm:space-y-6'>
-      <h1 className='text-2xl font-semibold text-gray-900 tracking-tight'>
-        Users
-      </h1>
+      <h1 className='heading-1'>Users</h1>
 
-      <div className='flex border-b border-gray-200/90'>
-        {(['members', 'invitations', 'roles'] as const).map(t => (
-          <button
-            key={t}
-            type='button'
-            onClick={() => setTab(t)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t
-                ? 'border-[#073E60] text-[#073E60]'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            {t === 'members' && 'Team members'}
-            {t === 'invitations' && 'Invitations'}
-            {t === 'roles' && 'Roles'}
-          </button>
-        ))}
-      </div>
+      <ModuleTabs
+        variant='state'
+        tabs={userTabs}
+        activeId={tab}
+        onTabChange={id => setTab(id as Tab)}
+        ariaLabel='Users sections'
+      />
 
       <ListPageToolbar
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder='Search by name or email...'
         filterLabel='All'
-        primaryLabel='Invite team member'
-        onPrimaryClick={() => setInviteOpen(true)}
+        primaryLabel={canManageTeam ? 'Invite team member' : undefined}
+        onPrimaryClick={canManageTeam ? () => setInviteOpen(true) : undefined}
       />
 
       {tab === 'members' && (
@@ -506,15 +609,19 @@ const UsersPage: React.FC = () => {
           sortKey={sortKey}
           sortDir={sortDir}
           onSort={handleSort}
-          renderRowActions={role => (
-            <button
-              type='button'
-              onClick={() => openEditRole(role)}
-              className='text-sm font-medium text-[#073E60] hover:underline'
-            >
-              Edit permissions
-            </button>
-          )}
+          renderRowActions={
+            canManageTeam
+              ? role => (
+                  <button
+                    type='button'
+                    onClick={() => openEditRole(role)}
+                    className='text-sm font-medium text-[#073E60] dark:text-primary-400 hover:underline dark:hover:text-primary-300'
+                  >
+                    Edit permissions
+                  </button>
+                )
+              : undefined
+          }
           tableMinWidth='640px'
           emptyMessage='No roles found.'
         />
@@ -526,6 +633,7 @@ const UsersPage: React.FC = () => {
         onInvite={handleInvite}
         customRoles={customRoles}
         onAddCustomRole={handleAddCustomRole}
+        apiRoles={apiRoles}
       />
 
       {editingRole && (
@@ -538,6 +646,25 @@ const UsersPage: React.FC = () => {
           roleLabel={editingRole.label}
           isDefault={editingRole.isDefault}
           initialPermissions={getEffectivePermissions(editingRole.id)}
+          apiPermissions={
+            allApiPermissions.length > 0 ? allApiPermissions : undefined
+          }
+          apiSelectedIds={
+            allApiPermissions.length > 0 && editingRole
+              ? (apiRoles
+                  .find(r => r.id === editingRole.id)
+                  ?.permissions?.map((p: { id: string }) => p.id) ?? [])
+              : undefined
+          }
+          onSaveApi={
+            allApiPermissions.length > 0 && editingRole
+              ? (permissionIds: string[]) =>
+                  updateRoleMutation.mutate({
+                    roleId: editingRole.id,
+                    permissionIds,
+                  })
+              : undefined
+          }
           fullAccess={Boolean(
             DEFAULT_ROLES.find(r => r.id === editingRole.id)?.fullAccess &&
               !roleOverrides[editingRole.id]

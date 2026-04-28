@@ -19,16 +19,18 @@ const AuthPageHeader: React.FC<AuthPageHeaderProps> = ({
       {variant === 'logo' ? (
         <img src={logo} alt='Asture FMS' className='w-16 h-16' />
       ) : (
-        <span className='flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary-200 bg-primary-50'>
+        <span className='flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary-200 dark:border-primary-600 bg-primary-50 dark:bg-primary-900/40'>
           {icon}
         </span>
       )}
     </div>
     <div className='text-center space-y-2'>
-      <h1 className='text-2xl font-semibold text-gray-900 tracking-tight'>
+      <h1 className='text-2xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight'>
         {title}
       </h1>
-      {subtitle && <p className='text-sm text-gray-500'>{subtitle}</p>}
+      {subtitle && (
+        <p className='text-sm text-gray-500 dark:text-gray-300'>{subtitle}</p>
+      )}
     </div>
   </>
 );

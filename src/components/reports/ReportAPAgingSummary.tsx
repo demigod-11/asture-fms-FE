@@ -1,9 +1,14 @@
 import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from 'react-query';
+import { useProfile } from '@/contexts/ProfileContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import ReportToolbar, { getDefaultReportToolbarState } from './ReportToolbar';
 import SelectableDataTable from '@/components/SelectableDataTable';
-
-const formatNgn = (n: number) =>
-  `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import {
+  getApAgingReport,
+  type ApAgingReportResponse,
+} from '@/services/reportsApi';
 
 interface APAgingRow {
   id: string;
@@ -16,53 +21,50 @@ interface APAgingRow {
   total: number;
 }
 
-const SAMPLE_AP_AGING: APAgingRow[] = [
-  {
-    id: '1',
-    vendor: 'ABC Supplies Ltd',
-    current: 85000,
-    days1_30: 20000,
-    days31_60: 0,
-    days61_90: 15000,
-    over90: 0,
-    total: 120000,
-  },
-  {
-    id: '2',
-    vendor: 'XYZ Services',
-    current: 40000,
-    days1_30: 0,
-    days31_60: 35000,
-    days61_90: 0,
-    over90: 5000,
-    total: 80000,
-  },
-  {
-    id: '3',
-    vendor: 'Office World',
-    current: 0,
-    days1_30: 45000,
-    days31_60: 0,
-    days61_90: 0,
-    over90: 0,
-    total: 45000,
-  },
-];
-
 const NUM_HEADER = 'text-right';
 const NUM_CELL = 'text-right tabular-nums';
-const NUM_TOTAL = 'text-right tabular-nums font-semibold text-gray-900';
+const NUM_TOTAL =
+  'text-right tabular-nums font-semibold text-gray-900 dark:text-gray-100';
 
 const ReportAPAgingSummary: React.FC = () => {
+  const { profiles } = useProfile();
+  const { formatCurrency } = useCurrency();
   const [toolbarState, setToolbarState] = useState(
     getDefaultReportToolbarState
   );
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
+  const organisationId = profiles[0]?.organisation_id ?? '';
+
+  const {
+    data: report,
+    isLoading,
+    error,
+  } = useQuery<ApAgingReportResponse>(
+    ['reports', 'ap-aging', organisationId],
+    () => getApAgingReport(organisationId),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const rows: APAgingRow[] = useMemo(
+    () =>
+      report?.rows.map(r => ({
+        id: r.vendor_id,
+        vendor: r.vendor_name,
+        current: Number(r.current ?? 0),
+        days1_30: Number(r.days_1_30 ?? 0),
+        days31_60: Number(r.days_31_60 ?? 0),
+        days61_90: Number(r.days_61_90 ?? 0),
+        over90: Number(r.days_over_90 ?? 0),
+        total: Number(r.total ?? 0),
+      })) ?? [],
+    [report]
+  );
+
   const sortedData = useMemo(() => {
-    if (!sortKey) return SAMPLE_AP_AGING;
-    return [...SAMPLE_AP_AGING].sort((a, b) => {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => {
       const aVal = (a as unknown as Record<string, unknown>)[sortKey];
       const bVal = (b as unknown as Record<string, unknown>)[sortKey];
       const cmp =
@@ -73,17 +75,31 @@ const ReportAPAgingSummary: React.FC = () => {
             });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [sortKey, sortDir]);
+  }, [rows, sortKey, sortDir]);
 
   const columns: import('@/components/SelectableDataTable').SelectableDataTableColumn<APAgingRow>[] =
     [
-      { id: 'vendor', header: 'Vendor', cell: r => r.vendor, sortable: true },
+      {
+        id: 'vendor',
+        header: 'Vendor',
+        cell: r => (
+          <Link
+            to='/purchase/bills'
+            className='text-[#073E60] dark:text-primary-400 hover:underline'
+          >
+            {r.vendor}
+          </Link>
+        ),
+        sortable: true,
+      },
       {
         id: 'current',
         header: 'Current',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_CELL}>{formatNgn(r.current)}</span>,
+        cell: r => (
+          <span className={NUM_CELL}>{formatCurrency(r.current)}</span>
+        ),
         sortable: true,
       },
       {
@@ -91,7 +107,9 @@ const ReportAPAgingSummary: React.FC = () => {
         header: '1-30 days',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_CELL}>{formatNgn(r.days1_30)}</span>,
+        cell: r => (
+          <span className={NUM_CELL}>{formatCurrency(r.days1_30)}</span>
+        ),
         sortable: true,
       },
       {
@@ -99,7 +117,9 @@ const ReportAPAgingSummary: React.FC = () => {
         header: '31-60 days',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_CELL}>{formatNgn(r.days31_60)}</span>,
+        cell: r => (
+          <span className={NUM_CELL}>{formatCurrency(r.days31_60)}</span>
+        ),
         sortable: true,
       },
       {
@@ -107,7 +127,9 @@ const ReportAPAgingSummary: React.FC = () => {
         header: '61-90 days',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_CELL}>{formatNgn(r.days61_90)}</span>,
+        cell: r => (
+          <span className={NUM_CELL}>{formatCurrency(r.days61_90)}</span>
+        ),
         sortable: true,
       },
       {
@@ -115,7 +137,7 @@ const ReportAPAgingSummary: React.FC = () => {
         header: 'Over 90',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_CELL}>{formatNgn(r.over90)}</span>,
+        cell: r => <span className={NUM_CELL}>{formatCurrency(r.over90)}</span>,
         sortable: true,
       },
       {
@@ -123,32 +145,44 @@ const ReportAPAgingSummary: React.FC = () => {
         header: 'Total',
         headerClassName: NUM_HEADER,
         cellClassName: 'text-right tabular-nums',
-        cell: r => <span className={NUM_TOTAL}>{formatNgn(r.total)}</span>,
+        cell: r => <span className={NUM_TOTAL}>{formatCurrency(r.total)}</span>,
         sortable: true,
       },
     ];
 
-  const footerCells: React.ReactNode[] = [
-    'Total',
-    <span key='f1' className={NUM_TOTAL}>
-      {formatNgn(125000)}
-    </span>,
-    <span key='f2' className={NUM_TOTAL}>
-      {formatNgn(65000)}
-    </span>,
-    <span key='f3' className={NUM_TOTAL}>
-      {formatNgn(35000)}
-    </span>,
-    <span key='f4' className={NUM_TOTAL}>
-      {formatNgn(15000)}
-    </span>,
-    <span key='f5' className={NUM_TOTAL}>
-      {formatNgn(5000)}
-    </span>,
-    <span key='f6' className={NUM_TOTAL}>
-      {formatNgn(245000)}
-    </span>,
-  ];
+  const totalRow = report
+    ? {
+        current: Number(report.total_current ?? 0),
+        days1_30: Number(report.total_1_30 ?? 0),
+        days31_60: Number(report.total_31_60 ?? 0),
+        days61_90: Number(report.total_61_90 ?? 0),
+        over90: Number(report.total_over_90 ?? 0),
+        total: Number(report.total_overall ?? 0),
+      }
+    : null;
+  const footerCells: React.ReactNode[] = totalRow
+    ? [
+        'Total',
+        <span key='f1' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.current)}
+        </span>,
+        <span key='f2' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.days1_30)}
+        </span>,
+        <span key='f3' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.days31_60)}
+        </span>,
+        <span key='f4' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.days61_90)}
+        </span>,
+        <span key='f5' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.over90)}
+        </span>,
+        <span key='f6' className={NUM_TOTAL}>
+          {formatCurrency(totalRow.total)}
+        </span>,
+      ]
+    : ['Total', '', '', '', '', '', ''];
 
   return (
     <div className='space-y-4'>
@@ -161,8 +195,15 @@ const ReportAPAgingSummary: React.FC = () => {
         showSearch
       />
 
+      {error ? (
+        <p className='text-sm text-red-600 dark:text-red-400'>
+          {error instanceof Error
+            ? error.message
+            : 'Failed to load A/P aging summary'}
+        </p>
+      ) : null}
       <SelectableDataTable<APAgingRow>
-        data={sortedData}
+        data={isLoading ? [] : sortedData}
         getRowId={r => r.id}
         columns={columns}
         selectionLabel='A/P aging rows'
@@ -174,7 +215,7 @@ const ReportAPAgingSummary: React.FC = () => {
         }}
         tableMinWidth='640px'
         footerCells={footerCells}
-        emptyMessage='No A/P aging data.'
+        emptyMessage={isLoading ? 'Loading A/P aging…' : 'No A/P aging data.'}
       />
     </div>
   );

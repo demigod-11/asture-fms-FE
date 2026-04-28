@@ -1,19 +1,30 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
 import AuthPageHeader from '@/components/auth/AuthPageHeader';
 import FieldError from '@/components/auth/FieldError';
-import { useAuth } from '@/contexts/AuthContext';
+import FormAlert from '@/components/auth/FormAlert';
+import { signIn } from '@/services/authApi';
+import { getApiErrorMessage } from '@/utils/apiError';
+import { consumeSessionExpiredFlag } from '@/services/authStorage';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  useEffect(() => {
+    if (consumeSessionExpiredFlag()) {
+      setFormError('Your session expired. Please sign in again.');
+    }
+  }, []);
 
   const validateEmail = (value: string) => {
     if (!value.trim()) {
@@ -41,15 +52,37 @@ const Login: React.FC = () => {
     return true;
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     setEmailError('');
     setPasswordError('');
     const isEmailValid = validateEmail(email);
     const isPasswordValid = validatePassword(password);
     if (!isEmailValid || !isPasswordValid) return;
-    login();
-    navigate('/home', { replace: true });
+    setSubmitting(true);
+    try {
+      await signIn({ email: email.trim(), password });
+      const from = (
+        location.state as {
+          from?: { pathname?: string; search?: string; hash?: string };
+        } | null
+      )?.from;
+      const redirectTo = from?.pathname
+        ? `${from.pathname}${from.search ?? ''}${from.hash ?? ''}`
+        : '/home';
+      // 2FA: no token yet; go to OTP page. Token is issued only after verify-otp.
+      navigate('/otp', {
+        replace: true,
+        state: { email: email.trim(), flow: 'login', redirectTo },
+      });
+    } catch (err: unknown) {
+      setFormError(
+        getApiErrorMessage(err, 'Sign in failed. Please try again.')
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -76,8 +109,8 @@ const Login: React.FC = () => {
                   setEmail(e.target.value);
                   if (emailError) validateEmail(e.target.value);
                 }}
-                className={`input-field pl-10 pr-3 py-3.5 rounded-xl border focus:ring-2 focus:ring-[#073E60] focus:border-transparent ${
-                  emailError ? 'border-error-300' : 'border-gray-200'
+                className={`input-field pl-10 pr-3 py-3.5 rounded-xl ${
+                  emailError ? '!border-error-300' : ''
                 }`}
                 placeholder='hello@teddyed.com'
               />
@@ -99,8 +132,8 @@ const Login: React.FC = () => {
                   setPassword(e.target.value);
                   if (passwordError) validatePassword(e.target.value);
                 }}
-                className={`input-field pl-10 pr-12 py-3.5 rounded-xl border focus:ring-2 focus:ring-[#073E60] focus:border-transparent ${
-                  passwordError ? 'border-error-300' : 'border-gray-200'
+                className={`input-field pl-10 pr-12 py-3.5 rounded-xl ${
+                  passwordError ? '!border-error-300' : ''
                 }`}
                 placeholder='Enter password (mini. of 8 characters)'
               />
@@ -119,27 +152,25 @@ const Login: React.FC = () => {
             </div>
             {passwordError && <FieldError message={passwordError} />}
           </div>
+          {formError && (
+            <FormAlert message={formError} onClose={() => setFormError('')} />
+          )}
           <div className='flex justify-end'>
-            <Link
-              to='/forgot-password'
-              className='text-sm font-medium text-[#073E60] underline hover:text-[#052d47]'
-            >
+            <Link to='/forgot-password' className='auth-link text-sm'>
               Forgot Password?
             </Link>
           </div>
           <button
             type='submit'
-            className='w-full bg-[#073E60] text-white py-3 px-4 rounded-xl font-medium hover:bg-[#052d47] focus:outline-none focus:ring-2 focus:ring-[#073E60] focus:ring-offset-2 transition-colors'
+            disabled={submitting}
+            className='w-full bg-[#073E60] text-white py-3 px-4 rounded-xl font-medium hover:bg-[#052d47] focus:outline-none focus:ring-2 focus:ring-[#073E60] focus:ring-offset-2 disabled:opacity-70 transition-colors'
           >
-            Login
+            {submitting ? 'Signing in…' : 'Login'}
           </button>
         </form>
-        <p className='text-center text-sm text-gray-500'>
+        <p className='text-center text-sm text-gray-500 dark:text-gray-400'>
           Don&apos;t have an account?{' '}
-          <Link
-            to='/signup'
-            className='font-medium text-[#073E60] underline hover:text-[#052d47]'
-          >
+          <Link to='/signup' className='auth-link'>
             Create one
           </Link>
         </p>

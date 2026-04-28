@@ -21,6 +21,8 @@ export interface SelectableDataTableColumn<T> {
 export interface SelectableDataTableProps<T> {
   /** Table data */
   data: T[];
+  /** Optional: show loading state (callers may pass even if they also pass emptyMessage) */
+  isLoading?: boolean;
   /** Get unique id for each row */
   getRowId: (row: T) => string;
   /** Column definitions (order matches display) */
@@ -45,6 +47,8 @@ export interface SelectableDataTableProps<T> {
   onSort?: (key: string, dir: 'asc' | 'desc') => void;
   /** Optional footer row: one cell per column (same order as columns). Renders as <tfoot> for alignment with data. */
   footerCells?: React.ReactNode[];
+  /** Optional single-click row handler (e.g. open edit panel). */
+  onRowClick?: (row: T) => void;
 }
 
 /**
@@ -54,6 +58,7 @@ export interface SelectableDataTableProps<T> {
  */
 function SelectableDataTable<T>({
   data,
+  isLoading,
   getRowId,
   columns,
   selectionLabel,
@@ -66,6 +71,7 @@ function SelectableDataTable<T>({
   sortDir = 'asc',
   onSort,
   footerCells,
+  onRowClick,
 }: SelectableDataTableProps<T>) {
   const handleHeaderClick = (colId: string, sortable?: boolean) => {
     if (!onSort || sortable === false) return;
@@ -115,7 +121,7 @@ function SelectableDataTable<T>({
   };
 
   return (
-    <div className='bg-white rounded-xl border border-gray-200/80 overflow-hidden shadow-card'>
+    <div className='bg-white dark:bg-gray-800 rounded-xl border border-gray-200/80 dark:border-gray-700 overflow-hidden shadow-card'>
       <div className='overflow-x-auto'>
         <table
           className='w-full text-sm'
@@ -124,7 +130,7 @@ function SelectableDataTable<T>({
           aria-label={selectionLabel}
         >
           <thead>
-            <tr className='bg-gray-50/80 text-left'>
+            <tr className='bg-gray-50/80 dark:bg-gray-700/80 text-left'>
               {showCheckboxes && (
                 <th className='py-3 px-4 w-10'>
                   <input
@@ -151,7 +157,7 @@ function SelectableDataTable<T>({
                       <button
                         type='button'
                         onClick={() => handleHeaderClick(col.id, col.sortable)}
-                        className={`inline-flex items-center gap-1.5 w-full hover:text-gray-900 ${isRightAligned ? 'justify-end text-right' : 'text-left'}`}
+                        className={`inline-flex items-center gap-1.5 w-full hover:text-gray-900 dark:hover:text-gray-100 ${isRightAligned ? 'justify-end text-right' : 'text-left'}`}
                       >
                         {col.header}
                         {isSorted ? (
@@ -168,7 +174,7 @@ function SelectableDataTable<T>({
                           )
                         ) : (
                           <ArrowUpDown
-                            className='h-4 w-4 shrink-0 text-gray-400'
+                            className='h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500'
                             aria-hidden
                           />
                         )}
@@ -193,9 +199,9 @@ function SelectableDataTable<T>({
                     (showCheckboxes ? 1 : 0) +
                     (renderRowActions ? 1 : 0)
                   }
-                  className='py-12 text-center text-gray-500'
+                  className='py-12 text-center text-gray-500 dark:text-gray-400'
                 >
-                  {emptyMessage}
+                  {isLoading ? 'Loading…' : emptyMessage}
                 </td>
               </tr>
             ) : (
@@ -205,9 +211,12 @@ function SelectableDataTable<T>({
                 return (
                   <tr
                     key={id}
+                    onClick={() => onRowClick?.(row)}
                     onDoubleClick={() => handleRowClick(id)}
-                    className={`border-b border-gray-100 last:border-0 transition-colors cursor-pointer ${
-                      selected ? 'bg-primary-50/80' : 'hover:bg-gray-50/60'
+                    className={`border-b border-gray-100 dark:border-gray-700 last:border-0 transition-colors cursor-pointer ${
+                      selected
+                        ? 'bg-primary-50/80 dark:bg-primary-900/40'
+                        : 'hover:bg-gray-50/60 dark:hover:bg-gray-700/60'
                     }`}
                   >
                     {showCheckboxes && (
@@ -247,7 +256,7 @@ function SelectableDataTable<T>({
           </tbody>
           {footerCells != null && footerCells.length === columns.length && (
             <tfoot>
-              <tr className='border-t border-gray-200/80 bg-gray-50/80 font-semibold text-gray-900'>
+              <tr className='border-t border-gray-200/80 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/80 font-semibold text-gray-900 dark:text-gray-100'>
                 {showCheckboxes && <td className='py-3 px-4' />}
                 {footerCells.map((cell, i) => (
                   <td
@@ -264,7 +273,7 @@ function SelectableDataTable<T>({
         </table>
       </div>
       {footer && (
-        <div className='border-t border-gray-200/80 bg-gray-50/50'>
+        <div className='border-t border-gray-200/80 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50'>
           {footer}
         </div>
       )}

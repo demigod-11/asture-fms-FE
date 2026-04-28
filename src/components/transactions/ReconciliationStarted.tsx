@@ -1,174 +1,175 @@
 import React, { useState, useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import {
-  ChevronRight,
-  Printer,
-  Calendar,
-  ChevronDown,
-  AlertCircle,
-} from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronRight, Printer, AlertCircle, Check, X } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useProfile } from '@/contexts/ProfileContext';
 import SelectableDataTable from '@/components/SelectableDataTable';
 import PaginationFooter from '@/components/PaginationFooter';
-
-const formatNaira = (n: number) =>
-  `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import DateFilterDropdown, {
+  getDefaultDateFilterState,
+  type DateFilterState,
+} from '@/components/reports/DateFilterDropdown';
+import {
+  getReconciliation,
+  addReconciliationMatch,
+  removeReconciliationMatch,
+  updateReconciliation,
+} from '@/services/reconciliationsApi';
+import {
+  listBankTransactions,
+  type BankTransactionResponse,
+} from '@/services/bankTransactionsApi';
 
 interface ReconcileRow {
   id: string;
   date: string;
-  clearedDate: string;
-  type: string;
-  customer: string;
   refNo: string;
   description: string;
   amount: string;
-  outstanding: string;
   cleared: boolean;
 }
 
-const SAMPLE_RECONCILE_ROWS: ReconcileRow[] = [
-  {
-    id: '1',
-    date: '03/05/25',
-    clearedDate: '04/05/25',
-    type: 'Check',
-    customer: 'John Doe',
-    refNo: 'INV-1001',
-    description: 'Tuition Fee',
-    amount: '₦500.00',
-    outstanding: '₦500.00',
-    cleared: false,
-  },
-  {
-    id: '2',
-    date: '03/05/25',
-    clearedDate: '04/05/25',
-    type: 'Expense',
-    customer: 'John Doe',
-    refNo: 'PAYROLL-1',
-    description: 'Staff Salaries',
-    amount: '₦500.00',
-    outstanding: '₦500.00',
-    cleared: false,
-  },
-  {
-    id: '3',
-    date: '03/05/25',
-    clearedDate: '04/05/25',
-    type: 'Check',
-    customer: 'John Doe',
-    refNo: 'INV-1001',
-    description: 'Tuition Fee',
-    amount: '₦500.00',
-    outstanding: '₦500.00',
-    cleared: false,
-  },
-  {
-    id: '4',
-    date: '03/05/25',
-    clearedDate: '04/05/25',
-    type: 'Check',
-    customer: 'John Doe',
-    refNo: 'INV-1001',
-    description: 'Tuition Fee',
-    amount: '₦500.00',
-    outstanding: '₦500.00',
-    cleared: true,
-  },
-  {
-    id: '5',
-    date: '03/05/25',
-    clearedDate: '04/05/25',
-    type: 'Expense',
-    customer: 'John Doe',
-    refNo: 'PAYROLL-1',
-    description: 'Staff Salaries',
-    amount: '₦500.00',
-    outstanding: '₦500.00',
-    cleared: true,
-  },
-  {
-    id: '6',
-    date: '03/05/25',
-    clearedDate: '04/05/25',
-    type: 'Check',
-    customer: 'John Doe',
-    refNo: 'INV-1001',
-    description: 'Tuition Fee',
-    amount: '₦500.00',
-    outstanding: '₦500.00',
-    cleared: true,
-  },
-  {
-    id: '7',
-    date: '03/05/25',
-    clearedDate: '04/05/25',
-    type: 'Check',
-    customer: 'John Doe',
-    refNo: 'INV-1001',
-    description: 'Tuition Fee',
-    amount: '₦500.00',
-    outstanding: '₦500.00',
-    cleared: false,
-  },
-  {
-    id: '8',
-    date: '03/05/25',
-    clearedDate: '04/05/25',
-    type: 'Expense',
-    customer: 'John Doe',
-    refNo: 'PAYROLL-1',
-    description: 'Staff Salaries',
-    amount: '₦500.00',
-    outstanding: '₦500.00',
-    cleared: false,
-  },
-  {
-    id: '9',
-    date: '03/05/25',
-    clearedDate: '04/05/25',
-    type: 'Check',
-    customer: 'John Doe',
-    refNo: 'INV-1001',
-    description: 'Tuition Fee',
-    amount: '₦500.00',
-    outstanding: '₦500.00',
-    cleared: false,
-  },
-  {
-    id: '10',
-    date: '03/05/25',
-    clearedDate: '04/05/25',
-    type: 'Expense',
-    customer: 'John Doe',
-    refNo: 'PAYROLL-1',
-    description: 'Staff Salaries',
-    amount: '₦500.00',
-    outstanding: '₦500.00',
-    cleared: false,
-  },
-];
+function formatDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
+}
 
 const ReconciliationStarted: React.FC = () => {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { formatCurrency } = useCurrency();
+  const { profiles } = useProfile();
+  const organisationId = profiles[0]?.organisation_id ?? '';
   const location = useLocation();
   const state = location.state as {
+    reconciliationId?: string;
     accountName?: string;
     accountId?: string;
   } | null;
-  const accountName = state?.accountName ?? 'Zenith PLC';
-  const statementDate = 'April 28, 2024';
+  const reconciliationId = state?.reconciliationId ?? '';
+  const accountId = state?.accountId ?? '';
+  const accountName = state?.accountName ?? 'Bank account';
 
   const [filter, setFilter] = useState<'all' | 'payments' | 'deposits'>('all');
-  const [dateRangeLabel] = useState('May 7, 2024 - Apr 14, 2025');
-  const [statementEndOpen, setStatementEndOpen] = useState(false);
+  const [dateFilter, setDateFilter] = useState<DateFilterState>(
+    getDefaultDateFilterState()
+  );
   const [page, setPage] = useState(1);
-  const totalPages = 6;
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
+  const { data: recon, isLoading: reconLoading } = useQuery(
+    ['reconciliation', organisationId, reconciliationId],
+    () => getReconciliation(organisationId, reconciliationId),
+    { enabled: Boolean(organisationId && reconciliationId) }
+  );
+
+  const { data: txnsData } = useQuery(
+    ['bank-transactions', organisationId, accountId],
+    () =>
+      listBankTransactions(organisationId, {
+        bank_account_id: accountId,
+        page_size: 200,
+      }),
+    { enabled: Boolean(organisationId && accountId) }
+  );
+
+  const addMatchMutation = useMutation(
+    (txnId: string) => {
+      const txn = (txnsData?.items ?? []).find(t => t.id === txnId);
+      if (!txn || !recon) throw new Error('Transaction not found');
+      return addReconciliationMatch(organisationId, reconciliationId, {
+        bank_transaction_id: txnId,
+        amount: Number(txn.amount),
+        matched_at: new Date().toISOString().slice(0, 10),
+      });
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([
+          'reconciliation',
+          organisationId,
+          reconciliationId,
+        ]);
+      },
+    }
+  );
+
+  const removeMatchMutation = useMutation(
+    (txnId: string) =>
+      removeReconciliationMatch(organisationId, reconciliationId, txnId),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([
+          'reconciliation',
+          organisationId,
+          reconciliationId,
+        ]);
+      },
+    }
+  );
+
+  const completeMutation = useMutation(
+    () =>
+      updateReconciliation(organisationId, reconciliationId, {
+        status: 'completed',
+      }),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([
+          'reconciliation',
+          organisationId,
+          reconciliationId,
+        ]);
+        navigate('/transactions/bank-transactions');
+      },
+    }
+  );
+
+  const matchedIds = useMemo(
+    () => new Set((recon?.matches ?? []).map(m => m.bank_transaction_id)),
+    [recon]
+  );
+
+  const rows: ReconcileRow[] = useMemo(() => {
+    const items = (txnsData?.items ?? []) as BankTransactionResponse[];
+    return items.map(t => ({
+      id: t.id,
+      date: formatDate(t.txn_date),
+      refNo: t.reference ?? '',
+      description: t.description ?? '',
+      amount: formatCurrency(Number(t.amount ?? 0)),
+      cleared: matchedIds.has(t.id),
+    }));
+  }, [txnsData, matchedIds, formatCurrency]);
+
+  const filteredRows = useMemo(() => {
+    if (filter === 'all') return rows;
+    if (filter === 'payments')
+      return rows.filter(r => {
+        const t = (txnsData?.items ?? []).find(
+          (x: { id: string }) => x.id === r.id
+        ) as BankTransactionResponse | undefined;
+        return t && Number(t.amount) < 0;
+      });
+    return rows.filter(r => {
+      const t = (txnsData?.items ?? []).find(
+        (x: { id: string }) => x.id === r.id
+      ) as BankTransactionResponse | undefined;
+      return t && Number(t.amount) >= 0;
+    });
+  }, [rows, filter, txnsData?.items]);
+
   const sortedRows = useMemo(() => {
-    if (!sortKey) return SAMPLE_RECONCILE_ROWS;
-    return [...SAMPLE_RECONCILE_ROWS].sort((a, b) => {
+    if (!sortKey) return filteredRows;
+    return [...filteredRows].sort((a, b) => {
       const aVal = (a as unknown as Record<string, string>)[sortKey] ?? '';
       const bVal = (b as unknown as Record<string, string>)[sortKey] ?? '';
       const cmp = String(aVal).localeCompare(String(bVal), undefined, {
@@ -176,18 +177,53 @@ const ReconciliationStarted: React.FC = () => {
       });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [sortKey, sortDir]);
+  }, [filteredRows, sortKey, sortDir]);
 
-  const statementEndingBalance = 15000;
-  const clearedBalance = 11000;
-  const difference = 4000;
-  const bookEndingBalance = 13000;
-  const clearedDeposits = 4000;
-  const clearedWithdrawals = 6000;
+  const statementEndingBalance = Number(recon?.statement_ending_balance ?? 0);
+  const clearedTotal = useMemo(() => {
+    return (recon?.matches ?? []).reduce(
+      (sum, m) => sum + Number(m.amount ?? 0),
+      0
+    );
+  }, [recon?.matches]);
+  const difference = statementEndingBalance - clearedTotal;
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / 10));
+  const statementDate = recon?.statement_ending_date
+    ? new Date(recon.statement_ending_date).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : '';
+
+  if (!reconciliationId) {
+    return (
+      <div className='space-y-4'>
+        <p className='text-sm text-gray-600 dark:text-gray-300'>
+          No reconciliation in progress. Start one from{' '}
+          <Link
+            to='/transactions/bank-reconciliation'
+            className='text-[#073E60] dark:text-primary-400 hover:underline'
+          >
+            Bank reconciliation
+          </Link>
+          .
+        </p>
+      </div>
+    );
+  }
+
+  if (reconLoading || !recon) {
+    return (
+      <div className='space-y-4'>
+        <div className='h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse' />
+        <div className='h-64 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse' />
+      </div>
+    );
+  }
 
   return (
     <div className='space-y-4'>
-      {/* Breadcrumbs */}
       <nav
         className='flex items-center gap-1 text-sm text-gray-500'
         aria-label='Breadcrumb'
@@ -203,126 +239,89 @@ const ReconciliationStarted: React.FC = () => {
           Transactions
         </Link>
         <ChevronRight className='h-4 w-4' />
-        <span className='text-gray-900 font-medium'>Bank reconciliation</span>
+        <span className='text-gray-900 font-medium dark:text-gray-100'>
+          Bank reconciliation
+        </span>
       </nav>
 
-      {/* Title row */}
       <div className='flex flex-wrap items-start justify-between gap-4'>
         <div>
-          <h2 className='text-xl font-semibold text-gray-900'>
+          <h2 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
             Reconcile {accountName}
           </h2>
-          <p className='text-sm text-gray-500 mt-0.5'>{statementDate}</p>
+          <p className='text-sm text-gray-500 dark:text-gray-400 mt-0.5'>
+            {statementDate}
+          </p>
         </div>
-        <Link
-          to='/transactions/bank-reconciliation'
-          className='text-sm font-medium text-[#073E60] hover:underline'
-        >
-          Edit info
-        </Link>
+        <div className='flex items-center gap-2'>
+          <Link
+            to='/transactions/bank-reconciliation'
+            className='text-sm font-medium text-[#073E60] dark:text-primary-400 hover:underline'
+          >
+            Edit info
+          </Link>
+          {recon.status !== 'completed' && (
+            <button
+              type='button'
+              onClick={() => completeMutation.mutate()}
+              disabled={completeMutation.isLoading}
+              className='px-4 py-2 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl disabled:opacity-50'
+            >
+              {completeMutation.isLoading ? 'Completing…' : 'Complete'}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Summary section */}
       <div className='card p-4 sm:p-6'>
         <div className='flex flex-wrap items-center gap-4 sm:gap-6 text-sm'>
           <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-gray-500'>Statement Ending Balance</span>
-            <span className='font-semibold text-gray-900'>
-              {formatNaira(statementEndingBalance)}
+            <span className='text-gray-500 dark:text-gray-400'>
+              Statement ending balance
+            </span>
+            <span className='font-semibold text-gray-900 dark:text-gray-100'>
+              {formatCurrency(statementEndingBalance)}
             </span>
           </div>
           <span className='text-gray-400' aria-hidden>
             −
           </span>
           <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-gray-500'>Cleared Balance</span>
-            <span className='font-semibold text-gray-900'>
-              {formatNaira(clearedBalance)}
+            <span className='text-gray-500 dark:text-gray-400'>
+              Cleared total
+            </span>
+            <span className='font-semibold text-gray-900 dark:text-gray-100'>
+              {formatCurrency(clearedTotal)}
             </span>
           </div>
           <span className='text-gray-400' aria-hidden>
             =
           </span>
           <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-gray-500'>Difference</span>
-            <span className='font-semibold text-gray-900'>
-              {formatNaira(difference)}
+            <span className='text-gray-500 dark:text-gray-400'>Difference</span>
+            <span className='font-semibold text-gray-900 dark:text-gray-100'>
+              {formatCurrency(difference)}
             </span>
-            <AlertCircle className='h-4 w-4 text-amber-500' aria-hidden />
-          </div>
-        </div>
-        <div className='flex flex-wrap items-center gap-4 sm:gap-6 text-sm mt-4 pt-4 border-t border-gray-200'>
-          <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-gray-500'>Book Ending Balance</span>
-            <span className='font-semibold text-gray-900'>
-              {formatNaira(bookEndingBalance)}
-            </span>
-          </div>
-          <span className='text-gray-400'>+</span>
-          <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-gray-500'>Cleared Deposits</span>
-            <span className='font-semibold text-gray-900'>
-              {formatNaira(clearedDeposits)}
-            </span>
-          </div>
-          <span className='text-gray-400'>−</span>
-          <div className='flex flex-wrap items-center gap-2'>
-            <span className='text-gray-500'>Cleared Withdrawals</span>
-            <span className='font-semibold text-gray-900'>
-              {formatNaira(clearedWithdrawals)}
-            </span>
+            {difference !== 0 && (
+              <AlertCircle className='h-4 w-4 text-amber-500' aria-hidden />
+            )}
           </div>
         </div>
       </div>
 
-      {/* Toolbar */}
       <div className='flex flex-wrap items-center gap-3'>
-        <div className='relative'>
-          <button
-            type='button'
-            onClick={() => setStatementEndOpen(!statementEndOpen)}
-            className='inline-flex items-center gap-2 px-3 py-2.5 text-sm rounded-xl border border-gray-200 bg-white text-gray-700'
-          >
-            Statement end...
-            <ChevronDown className='h-4 w-4 text-gray-400' />
-          </button>
-          {statementEndOpen && (
-            <>
-              <div
-                className='fixed inset-0 z-10'
-                aria-hidden
-                onClick={() => setStatementEndOpen(false)}
-              />
-              <div className='absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[180px]'>
-                <button
-                  type='button'
-                  onClick={() => setStatementEndOpen(false)}
-                  className='w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50'
-                >
-                  Apr 28, 2024
-                </button>
-                <button
-                  type='button'
-                  onClick={() => setStatementEndOpen(false)}
-                  className='w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50'
-                >
-                  Mar 28, 2024
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-        <span className='inline-flex items-center gap-2 px-3 py-2.5 text-sm text-gray-600 rounded-xl border border-gray-200 bg-white'>
-          <Calendar className='h-4 w-4 text-gray-400' />
-          {dateRangeLabel}
-        </span>
-        <div className='flex rounded-lg border border-gray-200 p-0.5 bg-gray-50'>
+        <DateFilterDropdown state={dateFilter} onStateChange={setDateFilter} />
+        <div className='flex rounded-lg border border-gray-200 dark:border-gray-600 p-0.5 bg-gray-50 dark:bg-gray-800'>
           {(['all', 'payments', 'deposits'] as const).map(f => (
             <button
               key={f}
               type='button'
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md capitalize ${filter === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md capitalize ${
+                filter === f
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
             >
               {f === 'all' ? 'All' : f}
             </button>
@@ -330,14 +329,14 @@ const ReconciliationStarted: React.FC = () => {
         </div>
         <button
           type='button'
-          className='p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg'
+          className='p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg print:hidden'
           aria-label='Print'
+          onClick={() => window.print()}
         >
           <Printer className='h-5 w-5' />
         </button>
       </div>
 
-      {/* Table */}
       <SelectableDataTable<ReconcileRow>
         data={sortedRows}
         getRowId={row => row.id}
@@ -359,17 +358,10 @@ const ReconciliationStarted: React.FC = () => {
         columns={[
           { id: 'date', header: 'Date' as const, cell: row => row.date },
           {
-            id: 'clearedDate',
-            header: 'Cleared Date' as const,
-            cell: row => row.clearedDate,
+            id: 'refNo',
+            header: 'Ref No.' as const,
+            cell: row => row.refNo || '—',
           },
-          { id: 'type', header: 'Type' as const, cell: row => row.type },
-          {
-            id: 'customer',
-            header: 'Customer' as const,
-            cell: row => row.customer,
-          },
-          { id: 'refNo', header: 'Ref No.' as const, cell: row => row.refNo },
           {
             id: 'description',
             header: 'Description' as const,
@@ -386,13 +378,34 @@ const ReconciliationStarted: React.FC = () => {
             ),
           },
           {
-            id: 'outstanding',
-            header: 'Outstanding' as const,
-            headerClassName: 'text-right',
+            id: 'cleared',
+            header: 'Cleared' as const,
             cell: row => (
-              <span className='text-right tabular-nums block'>
-                {row.outstanding}
-              </span>
+              <div className='flex items-center gap-2'>
+                {row.cleared ? (
+                  <button
+                    type='button'
+                    onClick={() => removeMatchMutation.mutate(row.id)}
+                    disabled={removeMatchMutation.isLoading}
+                    className='p-1.5 text-green-600 dark:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded'
+                    aria-label='Unclear'
+                    title='Mark uncleared'
+                  >
+                    <Check className='h-4 w-4' />
+                  </button>
+                ) : (
+                  <button
+                    type='button'
+                    onClick={() => addMatchMutation.mutate(row.id)}
+                    disabled={addMatchMutation.isLoading}
+                    className='p-1.5 text-gray-400 hover:text-[#073E60] hover:bg-gray-100 dark:hover:bg-gray-700 rounded'
+                    aria-label='Mark cleared'
+                    title='Mark cleared'
+                  >
+                    <X className='h-4 w-4' />
+                  </button>
+                )}
+              </div>
             ),
           },
         ]}

@@ -2,13 +2,17 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
+import FormAlert from '@/components/auth/FormAlert';
+import FieldError from '@/components/auth/FieldError';
 import logo from '@/assets/logo.svg';
-import errorIcon from '@/assets/error-icon.svg';
+import { forgotPassword } from '@/services/authApi';
 
 const ForgotPassword: React.FC = () => {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const validateEmail = (value: string) => {
     if (!value.trim()) return 'Email cannot be blank';
@@ -17,12 +21,21 @@ const ForgotPassword: React.FC = () => {
     return '';
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const err = validateEmail(email);
     setError(err);
+    setFormError('');
     if (err) return;
-    setSubmitted(true);
+    setSubmitting(true);
+    try {
+      await forgotPassword(email.trim());
+      setSubmitted(true);
+    } catch {
+      setFormError('Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -32,16 +45,19 @@ const ForgotPassword: React.FC = () => {
           <div className='flex justify-center'>
             <img src={logo} alt='Asture FMS' className='w-16 h-16' />
           </div>
-          <h1 className='text-2xl font-semibold text-gray-900 tracking-tight'>
+          <h1 className='text-2xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight'>
             Check your email
           </h1>
-          <p className='text-sm text-gray-500'>
-            We&apos;ve sent a password reset link to <strong>{email}</strong>.
-            Click the link in the email to set a new password.
+          <p className='text-sm text-gray-500 dark:text-gray-300'>
+            We&apos;ve sent a password reset link to{' '}
+            <strong className='text-gray-700 dark:text-gray-200'>
+              {email}
+            </strong>
+            . Click the link in the email to set a new password.
           </p>
           <Link
             to='/login'
-            className='inline-block text-center text-sm font-medium text-[#073E60] underline hover:text-[#052d47]'
+            className='auth-link inline-block text-center text-sm'
           >
             Back to sign in
           </Link>
@@ -57,17 +73,20 @@ const ForgotPassword: React.FC = () => {
           <img src={logo} alt='Asture FMS' className='w-16 h-16' />
         </div>
         <div className='text-center space-y-2'>
-          <h1 className='text-2xl font-semibold text-gray-900 tracking-tight'>
+          <h1 className='text-2xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight'>
             Forgot password?
           </h1>
-          <p className='text-sm text-gray-500'>
+          <p className='text-sm text-gray-500 dark:text-gray-300'>
             Enter your email and we&apos;ll send you a link to reset your
             password.
           </p>
         </div>
         <form onSubmit={handleSubmit} className='space-y-5'>
           <div className='space-y-2'>
-            <label htmlFor='email' className='form-label text-gray-900'>
+            <label
+              htmlFor='email'
+              className='form-label text-gray-900 dark:text-gray-200'
+            >
               Email *
             </label>
             <div className='relative'>
@@ -77,31 +96,27 @@ const ForgotPassword: React.FC = () => {
                 type='email'
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                className={`input-field pl-10 py-3.5 rounded-xl border ${
-                  error ? 'border-error-300' : 'border-gray-200'
+                className={`input-field pl-10 py-3.5 rounded-xl ${
+                  error ? '!border-error-300' : ''
                 }`}
                 placeholder='hello@teddyed.com'
               />
             </div>
-            {error && (
-              <p className='text-sm text-error-500 flex items-center gap-1'>
-                <img src={errorIcon} alt='' className='h-4 w-4' />
-                {error}
-              </p>
+            {error && <FieldError message={error} />}
+            {formError && (
+              <FormAlert message={formError} onClose={() => setFormError('')} />
             )}
           </div>
           <button
             type='submit'
-            className='w-full bg-[#073E60] text-white py-3 px-4 rounded-xl font-medium hover:bg-[#052d47] focus:outline-none focus:ring-2 focus:ring-[#073E60] focus:ring-offset-2 transition-colors'
+            disabled={submitting}
+            className='w-full bg-[#073E60] text-white py-3 px-4 rounded-xl font-medium hover:bg-[#052d47] focus:outline-none focus:ring-2 focus:ring-[#073E60] focus:ring-offset-2 disabled:opacity-70 transition-colors'
           >
-            Send reset link
+            {submitting ? 'Sending…' : 'Send reset link'}
           </button>
         </form>
-        <p className='text-center text-sm text-gray-500'>
-          <Link
-            to='/login'
-            className='font-medium text-[#073E60] underline hover:text-[#052d47]'
-          >
+        <p className='text-center text-sm text-gray-500 dark:text-gray-400'>
+          <Link to='/login' className='auth-link'>
             Back to login
           </Link>
         </p>

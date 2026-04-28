@@ -7,8 +7,10 @@ export interface ListPageToolbarProps {
   searchValue: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder?: string;
-  /** If set, shows Filter button with this label (label hidden on small screens). */
+  /** If set, shows Filter button with this label (label hidden on small screens). Ignored when filterSlot is set. */
   filterLabel?: string;
+  /** When set, renders in place of the filter button (e.g. "All actions" dropdown). Single control for filter. */
+  filterSlot?: React.ReactNode;
   /** Optional node before Import/Export (e.g. "Last 90 days" button). */
   rightSlot?: React.ReactNode;
   /** If set, primary is a Link; otherwise use onPrimaryClick. */
@@ -25,6 +27,7 @@ const ListPageToolbar: React.FC<ListPageToolbarProps> = ({
   onSearchChange,
   searchPlaceholder = 'Search...',
   filterLabel,
+  filterSlot,
   rightSlot,
   primaryLabel,
   primaryTo,
@@ -35,7 +38,9 @@ const ListPageToolbar: React.FC<ListPageToolbarProps> = ({
     primaryLabel != null && (primaryTo != null || onPrimaryClick != null);
   const actions = (
     <div className='flex flex-wrap items-center gap-2'>
-      {filterLabel != null && (
+      {filterSlot != null ? (
+        filterSlot
+      ) : filterLabel != null ? (
         <button
           type='button'
           className='btn-secondary inline-flex items-center gap-2'
@@ -43,22 +48,22 @@ const ListPageToolbar: React.FC<ListPageToolbarProps> = ({
           <Filter className='h-4 w-4' />
           <span className='hidden sm:inline'>{filterLabel}</span>
         </button>
-      )}
+      ) : null}
       {rightSlot}
-      <span className='inline-flex items-center gap-0.5 px-2 py-2 rounded-xl border border-gray-200/90 bg-white shadow-input'>
+      <span className='inline-flex items-center gap-0.5 px-2 py-2 rounded-xl border border-gray-200/90 dark:border-gray-600 bg-white dark:bg-gray-700 shadow-input'>
         <TooltipButton
           title='Import'
           ariaLabel='Import'
-          className='p-1.5 hover:bg-gray-100 rounded-lg transition-colors'
+          className='p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors'
         >
-          <Upload className='h-4 w-4 text-gray-600' />
+          <Upload className='h-4 w-4 text-gray-600 dark:text-gray-300' />
         </TooltipButton>
         <TooltipButton
           title='Export'
           ariaLabel='Export'
-          className='p-1.5 hover:bg-gray-100 rounded-lg transition-colors'
+          className='p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors'
         >
-          <Download className='h-4 w-4 text-gray-600' />
+          <Download className='h-4 w-4 text-gray-600 dark:text-gray-300' />
         </TooltipButton>
       </span>
       {showPrimary &&
@@ -88,7 +93,7 @@ const ListPageToolbar: React.FC<ListPageToolbarProps> = ({
         className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${leftSlot ? 'flex-1 min-w-0' : 'flex-1'}`}
       >
         <div className='relative flex-1 max-w-xs'>
-          <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none' />
+          <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none' />
           <input
             type='search'
             placeholder={searchPlaceholder}

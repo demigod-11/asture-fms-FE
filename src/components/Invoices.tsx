@@ -1,20 +1,27 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Clock } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Clock } from 'lucide-react';
+import { useQuery } from 'react-query';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useProfile } from '@/contexts/ProfileContext';
 import SelectableDataTable from '@/components/SelectableDataTable';
 import ListPageToolbar from '@/components/ListPageToolbar';
 import PaginationFooter from '@/components/PaginationFooter';
-import ListPageRowActions from '@/components/ListPageRowActions';
-
-type InvoiceStatus =
-  | 'Paid'
-  | 'Overdue'
-  | 'Pending'
-  | 'Partially Paid'
-  | 'Draft';
+import DateFilterDropdown, {
+  getDefaultDateFilterState,
+  type DateFilterState,
+} from '@/components/reports/DateFilterDropdown';
+import NoOrganisationNotice from '@/components/NoOrganisationNotice';
+import {
+  listInvoices,
+  type InvoiceResponse,
+  type InvoiceStatus,
+} from '@/services/invoicesApi';
 
 interface InvoiceRow {
   id: string;
-  invoiceNumber: string;
+  publicId: string;
+  customerId: string;
   amount: number;
   created: string;
   due: string;
@@ -23,90 +30,101 @@ interface InvoiceRow {
   status: InvoiceStatus;
 }
 
-const SAMPLE_ROWS: InvoiceRow[] = [
-  {
-    id: 'INV-0001',
-    invoiceNumber: 'INV-2023-001',
-    amount: 120000,
-    created: 'Mar 20, 2025 4:59 PM',
-    due: 'Due Mar 28, 2025',
-    customerName: 'Michael Brown',
-    email: 'guardianemailaddress@hotmail.com',
-    status: 'Pending',
-  },
-  {
-    id: 'INV-0002',
-    invoiceNumber: 'INV-2023-002',
-    amount: 120000,
-    created: 'Mar 20, 2025 4:59 PM',
-    due: 'Due Mar 28, 2025',
-    customerName: 'Michael Brown',
-    email: 'guardianemailaddress@hotmail.com',
-    status: 'Overdue',
-  },
-  {
-    id: 'INV-0003',
-    invoiceNumber: 'INV-2023-003',
-    amount: 120000,
-    created: 'Mar 18, 2025 2:30 PM',
-    due: 'Due Mar 25, 2025',
-    customerName: 'Jane Smith',
-    email: 'jane.smith@example.com',
-    status: 'Paid',
-  },
-  {
-    id: 'INV-0004',
-    invoiceNumber: 'INV-2023-004',
-    amount: 85000,
-    created: 'Mar 15, 2025 10:00 AM',
-    due: 'Due Mar 22, 2025',
-    customerName: 'Chidi Okeke',
-    email: 'chidi@example.com',
-    status: 'Partially Paid',
-  },
-  {
-    id: 'INV-0005',
-    invoiceNumber: 'INV-2023-005',
-    amount: 200000,
-    created: 'Mar 10, 2025 3:45 PM',
-    due: 'Due Mar 17, 2025',
-    customerName: 'Amara Nwosu',
-    email: 'amara@example.com',
-    status: 'Paid',
-  },
-];
+function formatDateTime(dateStr: string): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
-function formatAmount(n: number): string {
-  return `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function invoiceToRow(invoice: InvoiceResponse): InvoiceRow {
+  const createdDisplay = formatDateTime(
+    invoice.created_at ?? invoice.issue_date
+  );
+  const dueDisplay = invoice.due_date
+    ? `Due ${formatDate(invoice.due_date)}`
+    : '';
+
+  return {
+    id: invoice.id,
+    publicId: invoice.public_id ?? invoice.invoice_number,
+    customerId: invoice.customer_id,
+    amount: Number(invoice.total ?? 0),
+    created: createdDisplay,
+    due: dueDisplay,
+    // Customer name/email are not yet exposed on the invoice response;
+    // these can be filled in later when the backend projects them.
+    customerName: 'Customer',
+    email: '',
+    status: (invoice.status || 'draft') as InvoiceStatus,
+  };
 }
 
 function StatusBadge({ status }: { status: InvoiceStatus }) {
   const map: Record<InvoiceStatus, string> = {
-    Paid: 'badge-success',
-    Overdue: 'badge-error',
-    Pending: 'badge-warning',
-    'Partially Paid': 'badge-info',
-    Draft: 'bg-gray-100 text-gray-700',
+    paid: 'badge-success',
+    overdue: 'badge-error',
+    sent: 'badge-warning',
+    partially_paid: 'badge-info',
+    draft: 'bg-gray-100 text-gray-700',
+    cancelled: 'bg-gray-100 text-gray-500',
   };
   return (
-    <span className={`badge inline-flex items-center gap-1 ${map[status]}`}>
-      {status === 'Pending' && <Clock className='h-3 w-3 shrink-0' />}
-      {status}
+    <span
+      className={`badge inline-flex items-center gap-1 ${map[status] ?? ''}`}
+    >
+      {(status === 'sent' || status === 'overdue') && (
+        <Clock className='h-3 w-3 shrink-0' />
+      )}
+      {status.replace('_', ' ')}
     </span>
   );
 }
 
-const INVOICE_COLUMNS = [
-  { id: 'id', header: 'ID' as const, cell: (row: InvoiceRow) => row.id },
+const getInvoiceColumns = (formatCurrency: (n: number) => string) => [
+  {
+    id: 'id',
+    header: 'ID' as const,
+    cell: (row: InvoiceRow) => (
+      <Link
+        to={`/sales/invoice/${row.id}`}
+        className='text-[#073E60] dark:text-primary-400 hover:underline'
+      >
+        {row.publicId}
+      </Link>
+    ),
+  },
   {
     id: 'customer',
     header: 'Customer' as const,
     cell: (row: InvoiceRow) => (
       <>
-        <span className='block'>{row.customerName}</span>
+        <Link
+          to={`/sales/customers?customer_id=${encodeURIComponent(row.customerId)}`}
+          className='block text-[#073E60] dark:text-primary-400 hover:underline'
+        >
+          {row.customerName}
+        </Link>
         <a
           href={`mailto:${row.email}`}
-          className='text-xs text-[#073E60] hover:underline'
+          className='text-xs text-[#073E60] dark:text-primary-400 hover:underline dark:hover:text-primary-300'
         >
           {row.email}
         </a>
@@ -116,7 +134,7 @@ const INVOICE_COLUMNS = [
   {
     id: 'amount',
     header: 'Amount' as const,
-    cell: (row: InvoiceRow) => formatAmount(row.amount),
+    cell: (row: InvoiceRow) => formatCurrency(row.amount),
   },
   {
     id: 'created',
@@ -124,7 +142,9 @@ const INVOICE_COLUMNS = [
     cell: (row: InvoiceRow) => (
       <>
         <span className='block'>{row.created}</span>
-        <span className='text-xs text-gray-500'>{row.due}</span>
+        <span className='text-xs text-gray-500 dark:text-gray-400'>
+          {row.due}
+        </span>
       </>
     ),
   },
@@ -136,26 +156,70 @@ const INVOICE_COLUMNS = [
 ];
 
 const Invoices: React.FC = () => {
+  const { formatCurrency } = useCurrency();
+  const { profiles } = useProfile();
+  const [searchParams] = useSearchParams();
+  const customerIdFromUrl = searchParams.get('customer_id') ?? undefined;
+  const organisationId = profiles[0]?.organisation_id ?? '';
+
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const totalPages = 6;
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [dateFilter, setDateFilter] = useState<DateFilterState>(
+    getDefaultDateFilterState()
+  );
+
+  const columns = useMemo(
+    () => getInvoiceColumns(formatCurrency),
+    [formatCurrency]
+  );
+
+  const {
+    data: listData,
+    isLoading,
+    error,
+  } = useQuery(
+    ['invoices', organisationId, page, search, dateFilter, customerIdFromUrl],
+    () =>
+      listInvoices(organisationId, {
+        page,
+        page_size: 20,
+        from_date: dateFilter.customFrom,
+        to_date: dateFilter.customTo,
+        customer_id: customerIdFromUrl ?? null,
+      }),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const totalPages = listData?.total_pages ?? 0;
+  const rows = useMemo(
+    () => (listData?.items ?? []).map(invoiceToRow),
+    [listData]
+  );
 
   const sortedData = useMemo(() => {
-    if (!sortKey) return SAMPLE_ROWS;
-    return [...SAMPLE_ROWS].sort((a, b) => {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => {
       const aVal = (a as unknown as Record<string, unknown>)[sortKey];
       const bVal = (b as unknown as Record<string, unknown>)[sortKey];
       const cmp =
         typeof aVal === 'number' && typeof bVal === 'number'
-          ? aVal - bVal
+          ? (aVal as number) - (bVal as number)
           : String(aVal ?? '').localeCompare(String(bVal ?? ''), undefined, {
               numeric: true,
             });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [sortKey, sortDir]);
+  }, [rows, sortKey, sortDir]);
+
+  if (!organisationId) {
+    return (
+      <NoOrganisationNotice>
+        No organisation in context. Complete onboarding to manage invoices.
+      </NoOrganisationNotice>
+    );
+  }
 
   return (
     <div className='space-y-4'>
@@ -164,20 +228,23 @@ const Invoices: React.FC = () => {
         onSearchChange={setSearch}
         filterLabel='All invoices'
         rightSlot={
-          <button
-            type='button'
-            className='btn-secondary inline-flex items-center gap-2'
-          >
-            <Calendar className='h-4 w-4' /> Last 90 days
-          </button>
+          <DateFilterDropdown
+            state={dateFilter}
+            onStateChange={setDateFilter}
+          />
         }
         primaryLabel='Create invoice'
         primaryTo='/sales/invoice/new'
       />
+      {error != null && (
+        <p className='text-sm text-red-600 dark:text-red-400'>
+          {error instanceof Error ? error.message : 'Failed to load invoices'}
+        </p>
+      )}
       <SelectableDataTable<InvoiceRow>
         data={sortedData}
         getRowId={row => row.id}
-        columns={INVOICE_COLUMNS}
+        columns={columns}
         selectionLabel='invoices'
         tableMinWidth='640px'
         sortKey={sortKey}
@@ -186,7 +253,6 @@ const Invoices: React.FC = () => {
           setSortKey(key);
           setSortDir(dir);
         }}
-        renderRowActions={() => <ListPageRowActions />}
         footer={
           <PaginationFooter
             page={page}
@@ -194,6 +260,7 @@ const Invoices: React.FC = () => {
             onPageChange={setPage}
           />
         }
+        emptyMessage={isLoading ? 'Loading invoices…' : 'No invoices found.'}
       />
     </div>
   );

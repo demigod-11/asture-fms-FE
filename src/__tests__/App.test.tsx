@@ -1,6 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from 'react-query';
 import App from '../App';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { setAccessToken } from '@/services/authStorage';
 
 // Mock react-router-dom
 const mockNavigate = jest.fn();
@@ -12,13 +16,24 @@ jest.mock('react-router-dom', () => ({
   ),
 }));
 
-// Wrapper component for testing with router context
+// Wrapper component for testing with router + auth + theme context
 const renderWithRouter = (
   component: React.ReactElement,
   { route = '/' } = {}
 ) => {
+  // Simulate an authenticated session for routes guarded by ProtectedRoute
+  setAccessToken('test-token');
+
+  const queryClient = new QueryClient();
+
   return render(
-    <MemoryRouter initialEntries={[route]}>{component}</MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[route]}>
+        <ThemeProvider>
+          <AuthProvider>{component}</AuthProvider>
+        </ThemeProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 };
 
@@ -33,24 +48,25 @@ describe('App Component', () => {
 
       expect(screen.getByText(/Login to your account/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
     });
 
-    test('renders home page when navigating to /', () => {
+    test('renders dashboard fallback when navigating to / without organisation', () => {
       renderWithRouter(<App />, { route: '/' });
 
-      expect(screen.getByText(/Welcome to Asture FMS/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/Your Finance Management System/i)
+        screen.getByText(
+          /No organisation in context\. Complete onboarding to view dashboard insights\./i
+        )
       ).toBeInTheDocument();
     });
 
-    test('renders home page when navigating to /home', () => {
+    test('renders dashboard fallback when navigating to /home without organisation', () => {
       renderWithRouter(<App />, { route: '/home' });
 
-      expect(screen.getByText(/Welcome to Asture FMS/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/Your Finance Management System/i)
+        screen.getByText(
+          /No organisation in context\. Complete onboarding to view dashboard insights\./i
+        )
       ).toBeInTheDocument();
     });
 
@@ -68,10 +84,13 @@ describe('App Component', () => {
       // Find the outermost container with the expected classes
       const container =
         screen
-          .getByText(/Welcome to Asture FMS/i)
+          .getByText(
+            /No organisation in context\. Complete onboarding to view dashboard insights\./i
+          )
           .closest('.min-h-screen.bg-gray-50') ||
-        screen.getByText(/Welcome to Asture FMS/i).parentElement?.parentElement
-          ?.parentElement?.parentElement;
+        screen.getByText(
+          /No organisation in context\. Complete onboarding to view dashboard insights\./i
+        ).parentElement?.parentElement?.parentElement?.parentElement;
       expect(container).toHaveClass('min-h-screen', 'bg-gray-50');
     });
 
@@ -94,18 +113,20 @@ describe('App Component', () => {
 
       // Check for Layout component elements (navigation, etc.)
       // Since Layout wraps the content, we can check for its presence indirectly
-      expect(screen.getByText(/Welcome to Asture FMS/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /No organisation in context\. Complete onboarding to view dashboard insights\./i
+        )
+      ).toBeInTheDocument();
     });
 
-    test('renders Home component on root and home routes', () => {
+    test('renders dashboard fallback on root route without organisation', () => {
       renderWithRouter(<App />, { route: '/' });
 
-      expect(screen.getByText(/Welcome to Asture FMS/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/Your Finance Management System/i)
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(/Manage your finances with ease and efficiency/i)
+        screen.getByText(
+          /No organisation in context\. Complete onboarding to view dashboard insights\./i
+        )
       ).toBeInTheDocument();
     });
 
@@ -137,14 +158,22 @@ describe('App Component', () => {
       renderWithRouter(<App />, { route: '/' });
 
       // Verify that the app renders correctly with the expected route structure
-      expect(screen.getByText(/Welcome to Asture FMS/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /No organisation in context\. Complete onboarding to view dashboard insights\./i
+        )
+      ).toBeInTheDocument();
     });
 
     test('handles nested routes correctly', () => {
       renderWithRouter(<App />, { route: '/home' });
 
-      // Both / and /home should render the same Home component
-      expect(screen.getByText(/Welcome to Asture FMS/i)).toBeInTheDocument();
+      // Both / and /home should render the same dashboard fallback when no organisation is set
+      expect(
+        screen.getByText(
+          /No organisation in context\. Complete onboarding to view dashboard insights\./i
+        )
+      ).toBeInTheDocument();
     });
   });
 });

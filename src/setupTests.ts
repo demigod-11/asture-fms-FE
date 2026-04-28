@@ -16,3 +16,20 @@ console.error = (...args: Parameters<typeof console.error>) => {
   }
   originalError.call(console, ...args);
 };
+
+// Polyfill matchMedia for jsdom so ThemeProvider works in tests
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: jest.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(), // deprecated
+      removeListener: jest.fn(), // deprecated
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  });
+}

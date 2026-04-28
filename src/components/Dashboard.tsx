@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from 'react-query';
+import NoOrganisationNotice from '@/components/NoOrganisationNotice';
 import {
   Building2,
   Wallet,
@@ -23,154 +25,146 @@ import {
   Cell,
 } from 'recharts';
 import Alert from '@/components/Alert';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useProfile } from '@/contexts/ProfileContext';
+import DateFilterDropdown, {
+  getDefaultDateFilterState,
+  type DateFilterState,
+} from '@/components/reports/DateFilterDropdown';
+import { getDateRangeForPreset } from '@/lib/dateFilters';
+import {
+  getArApSummary,
+  getActivityChart,
+  getExpensesByCategory,
+  getInvoiceStatusBreakdown,
+  getRevenueByCategory,
+  type ActivityChartResponse,
+  type BreakdownItem,
+  type ExpensesByCategoryResponse,
+  type InvoiceStatusBreakdownResponse,
+  type RevenueByCategoryResponse,
+} from '@/services/reportsApi';
+import {
+  listInvoices,
+  type InvoiceResponse,
+  type InvoiceStatus,
+} from '@/services/invoicesApi';
 
 const SUMMARY_CARDS = [
   {
-    title: 'Total Revenue (YTD)',
-    value: '₦120,000',
-    change: '+8.5%',
-    changeLabel: 'from last month',
-    trend: 'up',
+    key: 'revenue' as const,
+    title: 'Total Revenue (period)',
     icon: Building2,
     iconBg: 'bg-primary-100',
     iconColor: 'text-primary-600',
   },
   {
-    title: 'Total Expenses (YTD)',
-    value: '₦70,000',
-    change: '+8.5%',
-    changeLabel: '+10% from last year',
-    trend: 'up',
+    key: 'expenses' as const,
+    title: 'Total Expenses (period)',
     icon: Wallet,
     iconBg: 'bg-secondary-200',
     iconColor: 'text-secondary-700',
   },
   {
+    key: 'receivables' as const,
     title: 'Pending Invoices',
-    value: '₦25,000',
-    status: 'Urgent Attention Needed',
-    statusVariant: 'error' as const,
     icon: FileText,
     iconBg: 'bg-warning-100',
     iconColor: 'text-warning-600',
   },
   {
+    key: 'payables' as const,
     title: 'Overdue Payments',
-    value: '₦8,500',
-    status: 'Follow-Up Required',
-    statusVariant: 'warning' as const,
     icon: FileWarning,
     iconBg: 'bg-error-100',
     iconColor: 'text-error-600',
   },
+] as const;
+
+const PIE_COLORS = [
+  '#073E60',
+  '#22c55e',
+  '#f59e0b',
+  '#ef4444',
+  '#94a3b8',
+  '#a855f7',
 ];
 
-const BAR_DATA = [
-  { month: 'Jan', revenue: 8, expenses: 6, invoice: 10 },
-  { month: 'Feb', revenue: 12, expenses: 8, invoice: 14 },
-  { month: 'Mar', revenue: 10, expenses: 9, invoice: 12 },
-  { month: 'Apr', revenue: 15, expenses: 11, invoice: 18 },
-  { month: 'May', revenue: 18, expenses: 14, invoice: 20 },
-  { month: 'Jun', revenue: 22, expenses: 16, invoice: 24 },
-  { month: 'Jul', revenue: 20, expenses: 15, invoice: 22 },
-  { month: 'Aug', revenue: 25, expenses: 18, invoice: 28 },
-  { month: 'Sep', revenue: 28, expenses: 20, invoice: 30 },
-  { month: 'Oct', revenue: 30, expenses: 22, invoice: 32 },
-  { month: 'Nov', revenue: 32, expenses: 24, invoice: 35 },
-  { month: 'Dec', revenue: 35, expenses: 26, invoice: 38 },
-];
+function toNumber(value: number | string | undefined | null): number {
+  if (value == null) return 0;
+  const n = typeof value === 'string' ? Number(value) : value;
+  return Number.isFinite(n) ? n : 0;
+}
 
-const PAID_UNPAID_DATA = [
-  { name: 'Paid', value: 45, color: '#22c55e' },
-  { name: 'Pending', value: 20, color: '#f59e0b' },
-  { name: 'Over due', value: 12, color: '#ef4444' },
-  { name: 'Other', value: 23, color: '#073E60' },
-];
+function percentChange(current: number, previous: number): number | null {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return null;
+  if (previous === 0) return null;
+  return ((current - previous) / previous) * 100;
+}
 
-const REVENUE_BY_CATEGORY = [
-  { name: 'Fees & commissions', value: 50, color: '#073E60' },
-  { name: 'Services', value: 20, color: '#f97316' },
-  { name: 'Donation', value: 15, color: '#eab308' },
-  { name: 'Others', value: 8, color: '#ef4444' },
-  { name: 'Other', value: 7, color: '#94a3b8' },
-];
+function formatPct(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  const sign = value > 0 ? '+' : '';
+  return `${sign}${value.toFixed(1)}%`;
+}
 
-const EXPENSES_BY_CATEGORY = [
-  { name: 'Salaries', value: 45, color: '#22c55e' },
-  { name: 'Materials', value: 20, color: '#073E60' },
-  { name: 'Maintenance', value: 12, color: '#a855f7' },
-  { name: 'Others', value: 8, color: '#4c1d95' },
-  { name: 'Other', value: 15, color: '#94a3b8' },
-];
+function toPercentItems(
+  buckets: BreakdownItem[],
+  fixedColors?: Record<string, string>
+): Array<{ name: string; value: number; color: string }> {
+  const total = buckets.reduce((sum, b) => sum + toNumber(b.amount), 0);
+  return buckets.map((b, idx) => {
+    const pct = total > 0 ? Math.round((toNumber(b.amount) / total) * 100) : 0;
+    const color =
+      fixedColors?.[b.name] ??
+      (PIE_COLORS[idx % PIE_COLORS.length] || '#073E60');
+    return { name: b.name, value: pct, color };
+  });
+}
 
-type InvoiceStatus = 'Paid' | 'Overdue' | 'Pending' | 'Partially Paid';
+function topNWithOther(buckets: BreakdownItem[], n: number): BreakdownItem[] {
+  const sorted = [...buckets].sort(
+    (a, b) => toNumber(b.amount) - toNumber(a.amount)
+  );
+  const head = sorted.slice(0, n);
+  const tail = sorted.slice(n);
+  if (tail.length === 0) return head;
+  const otherAmount = tail.reduce((sum, b) => sum + toNumber(b.amount), 0);
+  const otherCount = tail.reduce((sum, b) => sum + (b.count ?? 0), 0);
+  return [...head, { name: 'Other', amount: otherAmount, count: otherCount }];
+}
 
-const INVOICE_ROWS = [
-  {
-    id: 'INV-0001',
-    invoiceNumber: 'INV-2023-001',
-    amount: '₦1,200.00',
-    paymentReceived: '₦1,200.00',
-    created: 'Mar 20, 2025 4:59 PM',
-    due: 'Due Mar 28, 2025',
-    customer: 'Michael Brown',
-    email: 'guardianemailaddress@hotmail.com',
-    status: 'Paid' as InvoiceStatus,
-  },
-  {
-    id: 'INV-0002',
-    invoiceNumber: 'INV-2023-001',
-    amount: '₦1,200.00',
-    paymentReceived: '₦0.00',
-    created: 'Mar 20, 2025 4:59 PM',
-    due: 'Due Mar 28, 2025',
-    customer: 'Michael Brown',
-    email: 'guardianemailaddress@hotmail.com',
-    status: 'Overdue' as InvoiceStatus,
-  },
-  {
-    id: 'INV-0003',
-    invoiceNumber: 'INV-2023-001',
-    amount: '₦1,200.00',
-    paymentReceived: '₦0.00',
-    created: 'Mar 20, 2025 4:59 PM',
-    due: 'Due Mar 28, 2025',
-    customer: 'Michael Brown',
-    email: 'guardianemailaddress@hotmail.com',
-    status: 'Pending' as InvoiceStatus,
-  },
-  {
-    id: 'INV-0004',
-    invoiceNumber: 'INV-2023-001',
-    amount: '₦1,200.00',
-    paymentReceived: '₦1,200.00',
-    created: 'Mar 20, 2025 4:59 PM',
-    due: 'Due Mar 28, 2025',
-    customer: 'Michael Brown',
-    email: 'guardianemailaddress@hotmail.com',
-    status: 'Paid' as InvoiceStatus,
-  },
-  {
-    id: 'INV-0005',
-    invoiceNumber: 'INV-2023-001',
-    amount: '₦1,200.00',
-    paymentReceived: '₦600.00',
-    created: 'Mar 20, 2025 4:59 PM',
-    due: 'Due Mar 28, 2025',
-    customer: 'Michael Brown',
-    email: 'guardianemailaddress@hotmail.com',
-    status: 'Partially Paid' as InvoiceStatus,
-  },
-];
+interface DashboardInvoiceRow {
+  id: string;
+  publicId: string;
+  amount: number;
+  paymentReceived: number;
+  created: string;
+  due: string;
+  customer: string;
+  email: string;
+  status: InvoiceStatus;
+}
 
 function StatusBadge({ status }: { status: InvoiceStatus }) {
-  const map: Record<InvoiceStatus, string> = {
-    Paid: 'badge badge-success',
-    Overdue: 'badge badge-error',
-    Pending: 'badge badge-warning',
-    'Partially Paid': 'badge badge-info',
+  const classMap: Record<InvoiceStatus, string> = {
+    paid: 'badge badge-success',
+    overdue: 'badge badge-error',
+    sent: 'badge badge-warning',
+    partially_paid: 'badge badge-info',
+    draft: 'badge bg-gray-100 text-gray-700',
+    cancelled: 'badge bg-gray-100 text-gray-500',
   };
-  return <span className={map[status]}>{status}</span>;
+  const labelMap: Record<InvoiceStatus, string> = {
+    paid: 'Paid',
+    overdue: 'Overdue',
+    sent: 'Pending',
+    partially_paid: 'Partially Paid',
+    draft: 'Draft',
+    cancelled: 'Cancelled',
+  };
+  return <span className={classMap[status]}>{labelMap[status]}</span>;
 }
 
 const INVOICE_TABS = [
@@ -182,19 +176,397 @@ const INVOICE_TABS = [
 ];
 
 const Dashboard: React.FC = () => {
+  const { theme } = useTheme();
+  const { formatCurrency } = useCurrency();
+  const { profiles } = useProfile();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const fromLogin =
+    (location.state as { fromLogin?: boolean } | null)?.fromLogin === true;
   const [invoiceTab, setInvoiceTab] = useState(INVOICE_TABS[0]);
-  const [showSuccessAlert, setShowSuccessAlert] = useState(true);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(fromLogin);
+  // Each section controls its own date range (changing one shouldn't change all).
+  const [overviewDateFilter, setOverviewDateFilter] = useState<DateFilterState>(
+    getDefaultDateFilterState()
+  );
+  const [paidUnpaidDateFilter, setPaidUnpaidDateFilter] =
+    useState<DateFilterState>(getDefaultDateFilterState());
+  const [revenueByCategoryDateFilter, setRevenueByCategoryDateFilter] =
+    useState<DateFilterState>(getDefaultDateFilterState());
+  const [expensesByCategoryDateFilter, setExpensesByCategoryDateFilter] =
+    useState<DateFilterState>(getDefaultDateFilterState());
+
+  useEffect(() => {
+    if (fromLogin) setShowSuccessAlert(true);
+  }, [fromLogin]);
+
+  const dismissWelcomeBanner = () => {
+    setShowSuccessAlert(false);
+    if (fromLogin) {
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  };
+
+  const organisationId = profiles[0]?.organisation_id ?? '';
+
+  const { date_from: fromDateStr, date_to: toDateStr } = useMemo(
+    () =>
+      getDateRangeForPreset(
+        overviewDateFilter.preset,
+        overviewDateFilter.customFrom,
+        overviewDateFilter.customTo
+      ),
+    [overviewDateFilter]
+  );
+
+  const { date_from: paidFromStr, date_to: paidToStr } = useMemo(
+    () =>
+      getDateRangeForPreset(
+        paidUnpaidDateFilter.preset,
+        paidUnpaidDateFilter.customFrom,
+        paidUnpaidDateFilter.customTo
+      ),
+    [paidUnpaidDateFilter]
+  );
+  const { date_from: revCatFromStr, date_to: revCatToStr } = useMemo(
+    () =>
+      getDateRangeForPreset(
+        revenueByCategoryDateFilter.preset,
+        revenueByCategoryDateFilter.customFrom,
+        revenueByCategoryDateFilter.customTo
+      ),
+    [revenueByCategoryDateFilter]
+  );
+  const { date_from: expCatFromStr, date_to: expCatToStr } = useMemo(
+    () =>
+      getDateRangeForPreset(
+        expensesByCategoryDateFilter.preset,
+        expensesByCategoryDateFilter.customFrom,
+        expensesByCategoryDateFilter.customTo
+      ),
+    [expensesByCategoryDateFilter]
+  );
+
+  const { data: arApSummary } = useQuery(
+    ['reports', 'ar-ap', organisationId],
+    () => getArApSummary(organisationId),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const { data: activityChart } = useQuery<ActivityChartResponse | undefined>(
+    ['reports', 'activity-chart', organisationId, fromDateStr, toDateStr],
+    () =>
+      getActivityChart(organisationId, {
+        from_date: fromDateStr,
+        to_date: toDateStr,
+      }),
+    { enabled: Boolean(organisationId) }
+  );
+
+  // Invoice totals per period for the overview bar chart (client-side aggregation).
+  // Invoice totals are included in the backend activity chart buckets (field: invoice).
+
+  // Previous period (same length) for % deltas in Finance overview cards
+  const { prevFromStr, prevToStr } = useMemo(() => {
+    const from = new Date(fromDateStr);
+    const to = new Date(toDateStr);
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const spanDays =
+      Math.max(0, Math.round((to.getTime() - from.getTime()) / oneDayMs)) + 1;
+
+    const prevTo = new Date(from);
+    prevTo.setDate(prevTo.getDate() - 1);
+    const prevFrom = new Date(prevTo);
+    prevFrom.setDate(prevFrom.getDate() - (spanDays - 1));
+
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    return { prevFromStr: fmt(prevFrom), prevToStr: fmt(prevTo) };
+  }, [fromDateStr, toDateStr]);
+
+  const { data: prevActivityChart } = useQuery<
+    ActivityChartResponse | undefined
+  >(
+    ['reports', 'activity-chart', organisationId, prevFromStr, prevToStr],
+    () =>
+      getActivityChart(organisationId, {
+        from_date: prevFromStr,
+        to_date: prevToStr,
+      }),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const { data: invoiceStatusBreakdown } = useQuery<
+    InvoiceStatusBreakdownResponse | undefined
+  >(
+    [
+      'reports',
+      'invoice-status-breakdown',
+      organisationId,
+      paidFromStr,
+      paidToStr,
+    ],
+    () =>
+      getInvoiceStatusBreakdown(organisationId, {
+        from_date: paidFromStr,
+        to_date: paidToStr,
+      }),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const { data: prevInvoiceStatusBreakdown } = useQuery<
+    InvoiceStatusBreakdownResponse | undefined
+  >(
+    [
+      'reports',
+      'invoice-status-breakdown',
+      organisationId,
+      prevFromStr,
+      prevToStr,
+    ],
+    () =>
+      getInvoiceStatusBreakdown(organisationId, {
+        from_date: prevFromStr,
+        to_date: prevToStr,
+      }),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const { data: revenueByCategory } = useQuery<
+    RevenueByCategoryResponse | undefined
+  >(
+    [
+      'reports',
+      'revenue-by-category',
+      organisationId,
+      revCatFromStr,
+      revCatToStr,
+    ],
+    () =>
+      getRevenueByCategory(organisationId, {
+        from_date: revCatFromStr,
+        to_date: revCatToStr,
+      }),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const { data: expensesByCategory } = useQuery<
+    ExpensesByCategoryResponse | undefined
+  >(
+    [
+      'reports',
+      'expenses-by-category',
+      organisationId,
+      expCatFromStr,
+      expCatToStr,
+    ],
+    () =>
+      getExpensesByCategory(organisationId, {
+        from_date: expCatFromStr,
+        to_date: expCatToStr,
+      }),
+    { enabled: Boolean(organisationId) }
+  );
+
+  const isDark = theme === 'dark';
+  const chartTickFill = isDark ? '#d1d5db' : '#374151';
+  const chartStroke = isDark ? '#4b5563' : '#9ca3af';
+
+  const revenueTotal = activityChart
+    ? activityChart.periods.reduce(
+        (sum: number, p: ActivityChartResponse['periods'][number]) =>
+          sum + Number(p.income ?? 0),
+        0
+      )
+    : 0;
+  const expensesTotal = activityChart
+    ? activityChart.periods.reduce(
+        (sum: number, p: ActivityChartResponse['periods'][number]) =>
+          sum + Number(p.expense ?? 0),
+        0
+      )
+    : 0;
+  const invoiceTotal = arApSummary
+    ? Number(arApSummary.receivables.total ?? 0)
+    : 0;
+
+  const barChartData =
+    activityChart && activityChart.periods.length > 0
+      ? activityChart.periods.map(
+          (p: ActivityChartResponse['periods'][number]) => ({
+            month: p.label,
+            revenue: Number(p.income ?? 0),
+            expenses: Number(p.expense ?? 0),
+          })
+        )
+      : [];
+
+  const paidUnpaidData = useMemo(() => {
+    const buckets = invoiceStatusBreakdown?.buckets ?? [];
+    // Align with existing UI labels/colors
+    const normalized = buckets.map((b: BreakdownItem) => ({
+      ...b,
+      name: b.name === 'Overdue' ? 'Over due' : b.name,
+    }));
+    return toPercentItems(normalized as unknown as BreakdownItem[], {
+      Paid: '#22c55e',
+      Pending: '#f59e0b',
+      'Over due': '#ef4444',
+      Other: '#073E60',
+    });
+  }, [invoiceStatusBreakdown]);
+
+  const revenueByCategoryData = useMemo(() => {
+    const buckets = topNWithOther(revenueByCategory?.buckets ?? [], 4);
+    return toPercentItems(buckets);
+  }, [revenueByCategory]);
+
+  const expensesByCategoryData = useMemo(() => {
+    const buckets = topNWithOther(expensesByCategory?.buckets ?? [], 4);
+    return toPercentItems(buckets);
+  }, [expensesByCategory]);
+
+  const invoiceTotalAmount = useMemo(() => {
+    const buckets = invoiceStatusBreakdown?.buckets ?? [];
+    return buckets.reduce(
+      (sum: number, b: BreakdownItem) => sum + toNumber(b.amount),
+      0
+    );
+  }, [invoiceStatusBreakdown]);
+
+  const prevRevenueTotal = useMemo(() => {
+    return prevActivityChart
+      ? prevActivityChart.periods.reduce(
+          (sum: number, p: ActivityChartResponse['periods'][number]) =>
+            sum + Number(p.income ?? 0),
+          0
+        )
+      : 0;
+  }, [prevActivityChart]);
+
+  const prevExpensesTotal = useMemo(() => {
+    return prevActivityChart
+      ? prevActivityChart.periods.reduce(
+          (sum: number, p: ActivityChartResponse['periods'][number]) =>
+            sum + Number(p.expense ?? 0),
+          0
+        )
+      : 0;
+  }, [prevActivityChart]);
+
+  const prevInvoiceTotalAmount = useMemo(() => {
+    const buckets = prevInvoiceStatusBreakdown?.buckets ?? [];
+    return buckets.reduce(
+      (sum: number, b: BreakdownItem) => sum + toNumber(b.amount),
+      0
+    );
+  }, [prevInvoiceStatusBreakdown]);
+
+  const revenueDeltaPct = useMemo(
+    () => percentChange(revenueTotal, prevRevenueTotal),
+    [revenueTotal, prevRevenueTotal]
+  );
+  const expensesDeltaPct = useMemo(
+    () => percentChange(expensesTotal, prevExpensesTotal),
+    [expensesTotal, prevExpensesTotal]
+  );
+  const invoiceDeltaPct = useMemo(
+    () => percentChange(invoiceTotal, prevInvoiceTotalAmount),
+    [invoiceTotal, prevInvoiceTotalAmount]
+  );
+
+  const revenueTotalAmount = useMemo(() => {
+    const buckets = revenueByCategory?.buckets ?? [];
+    return buckets.reduce(
+      (sum: number, b: BreakdownItem) => sum + toNumber(b.amount),
+      0
+    );
+  }, [revenueByCategory]);
+
+  const expensesTotalAmount = useMemo(() => {
+    const buckets = expensesByCategory?.buckets ?? [];
+    return buckets.reduce(
+      (sum: number, b: BreakdownItem) => sum + toNumber(b.amount),
+      0
+    );
+  }, [expensesByCategory]);
+
+  const { data: recentInvoicesData, isLoading: isRecentInvoicesLoading } =
+    useQuery(
+      ['dashboard', 'recent-invoices', organisationId],
+      () =>
+        listInvoices(organisationId, {
+          page: 1,
+          page_size: 5,
+        }),
+      { enabled: Boolean(organisationId) }
+    );
+
+  const recentInvoiceRows: DashboardInvoiceRow[] = useMemo(() => {
+    if (!recentInvoicesData) return [];
+    const items = recentInvoicesData.items ?? [];
+
+    const filtered = items.filter((inv: InvoiceResponse) => {
+      if (invoiceTab === 'Draft') return inv.status === 'draft';
+      if (invoiceTab === 'Overdue') return inv.status === 'overdue';
+      if (invoiceTab === 'Paid') return inv.status === 'paid';
+      if (invoiceTab === 'Outstanding') {
+        return inv.status === 'sent' || inv.status === 'partially_paid';
+      }
+      return true;
+    });
+
+    return filtered.slice(0, 5).map((inv: InvoiceResponse) => {
+      const created = inv.created_at || inv.issue_date;
+      const createdDisplay = created
+        ? new Date(created).toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          })
+        : '';
+      const dueDisplay = inv.due_date
+        ? `Due ${new Date(inv.due_date).toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          })}`
+        : '';
+
+      return {
+        id: inv.id,
+        publicId: inv.public_id ?? inv.invoice_number,
+        amount: Number(inv.total ?? 0),
+        paymentReceived: 0,
+        created: createdDisplay,
+        due: dueDisplay,
+        customer: 'Customer',
+        email: '',
+        status: inv.status,
+      };
+    });
+  }, [recentInvoicesData, invoiceTab]);
+
+  if (!organisationId) {
+    return (
+      <NoOrganisationNotice>
+        No organisation in context. Complete onboarding to view dashboard
+        insights.
+      </NoOrganisationNotice>
+    );
+  }
 
   return (
     <div className='space-y-4 sm:space-y-6'>
-      {/* Success prompt (Figma 1036-13071) - dismissible */}
+      {/* Welcome banner: only after login (verify-otp → /home), not on every overview visit */}
       {showSuccessAlert && (
         <Alert
           variant='success'
           message="You're signed in. Welcome to your dashboard."
           actionLabel='View profile'
-          onAction={() => setShowSuccessAlert(false)}
-          onClose={() => setShowSuccessAlert(false)}
+          onAction={dismissWelcomeBanner}
+          onClose={dismissWelcomeBanner}
         />
       )}
 
@@ -202,11 +574,28 @@ const Dashboard: React.FC = () => {
       <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5'>
         {SUMMARY_CARDS.map(card => {
           const Icon = card.icon;
+          let value = 0;
+          let secondary: string | null = null;
+
+          if (card.key === 'revenue') {
+            value = revenueTotal;
+          } else if (card.key === 'expenses') {
+            value = expensesTotal;
+          } else if (card.key === 'receivables' && arApSummary) {
+            value = Number(arApSummary.receivables.total ?? 0);
+            secondary =
+              arApSummary.receivables.overdue_count > 0
+                ? `${arApSummary.receivables.overdue_count} overdue`
+                : null;
+          } else if (card.key === 'payables' && arApSummary) {
+            value = Number(arApSummary.payables.total ?? 0);
+            secondary =
+              arApSummary.payables.overdue_count > 0
+                ? `${arApSummary.payables.overdue_count} overdue`
+                : null;
+          }
           return (
-            <div
-              key={card.title}
-              className='card card-hover flex flex-col gap-3'
-            >
+            <div key={card.key} className='card card-hover flex flex-col gap-3'>
               <div className='flex items-start justify-between'>
                 <div
                   className={`p-2 rounded-lg ${card.iconBg} ${card.iconColor}`}
@@ -214,31 +603,29 @@ const Dashboard: React.FC = () => {
                 >
                   <Icon className='h-5 w-5' />
                 </div>
-                {'change' in card && card.trend === 'up' && (
+                {(card.key === 'revenue' || card.key === 'expenses') && (
                   <span className='flex items-center gap-0.5 text-sm font-medium text-success-600'>
                     <TrendingUp className='h-4 w-4' />
-                    {card.change}
                   </span>
                 )}
-                {'status' in card && (
-                  <span
-                    className={`flex items-center gap-1 text-xs ${
-                      card.statusVariant === 'error'
-                        ? 'text-error-600'
-                        : 'text-warning-600'
-                    }`}
-                  >
-                    <AlertTriangle className='h-3.5 w-3.5' />
-                    {card.status}
-                  </span>
-                )}
+                {(card.key === 'receivables' || card.key === 'payables') &&
+                  secondary && (
+                    <span className='flex items-center gap-1 text-xs text-warning-600'>
+                      <AlertTriangle className='h-3.5 w-3.5' />
+                      {secondary}
+                    </span>
+                  )}
               </div>
-              <p className='text-sm font-medium text-gray-500'>{card.title}</p>
-              <p className='text-xl font-semibold text-gray-900'>
-                {card.value}
+              <p className='text-sm font-medium text-gray-500 dark:text-gray-400'>
+                {card.title}
               </p>
-              {'changeLabel' in card && (
-                <p className='text-xs text-gray-500'>{card.changeLabel}</p>
+              <p className='text-xl font-semibold text-gray-900 dark:text-gray-100'>
+                {formatCurrency(value)}
+              </p>
+              {card.key === 'revenue' && (
+                <p className='text-xs text-gray-500 dark:text-gray-400'>
+                  Based on bank activity
+                </p>
               )}
             </div>
           );
@@ -248,11 +635,11 @@ const Dashboard: React.FC = () => {
       {/* Finance overview */}
       <div className='card card-hover overflow-hidden'>
         <div className='flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4'>
-          <h2 className='text-lg font-semibold text-gray-900'>
+          <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
             Finance overview
           </h2>
           <div className='flex flex-wrap items-center gap-4'>
-            <div className='flex items-center gap-3 text-sm'>
+            <div className='flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300'>
               <span className='flex items-center gap-1.5'>
                 <span
                   className='w-2.5 h-2.5 rounded-full bg-green-600'
@@ -275,67 +662,110 @@ const Dashboard: React.FC = () => {
                 Invoice
               </span>
             </div>
-            <select
-              className='input-field w-auto py-1.5 text-sm'
-              defaultValue='this-year'
-            >
-              <option value='this-year'>This year</option>
-            </select>
+            <DateFilterDropdown
+              state={overviewDateFilter}
+              onStateChange={setOverviewDateFilter}
+            />
           </div>
         </div>
         <div className='grid grid-cols-3 gap-4 mb-6'>
-          <div className='p-4 bg-gray-50/80 rounded-xl border border-gray-200/60'>
-            <p className='text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+          <div className='p-4 bg-gray-50/80 dark:bg-gray-700/80 rounded-xl border border-gray-200/60 dark:border-gray-600'>
+            <p className='text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
               Total Revenue
             </p>
-            <p className='text-lg font-semibold text-gray-900 mt-0.5'>
-              ₦10,000
+            <p className='text-lg font-semibold text-gray-900 dark:text-gray-100 mt-0.5'>
+              {formatCurrency(revenueTotal)}
             </p>
-            <p className='text-sm font-medium text-success-600 mt-0.5'>+8.5%</p>
+            <p
+              className={`text-sm font-medium mt-0.5 ${
+                revenueDeltaPct != null && revenueDeltaPct < 0
+                  ? 'text-error-600 dark:text-error-400'
+                  : 'text-success-600 dark:text-success-400'
+              }`}
+            >
+              {formatPct(revenueDeltaPct)}
+            </p>
           </div>
-          <div className='p-4 bg-gray-50/80 rounded-xl border border-gray-200/60'>
-            <p className='text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+          <div className='p-4 bg-gray-50/80 dark:bg-gray-700/80 rounded-xl border border-gray-200/60 dark:border-gray-600'>
+            <p className='text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
               Total Expenses
             </p>
-            <p className='text-lg font-semibold text-gray-900 mt-0.5'>
-              ₦10,000
+            <p className='text-lg font-semibold text-gray-900 dark:text-gray-100 mt-0.5'>
+              {formatCurrency(expensesTotal)}
             </p>
-            <p className='text-sm font-medium text-success-600 mt-0.5'>+8.5%</p>
+            <p
+              className={`text-sm font-medium mt-0.5 ${
+                expensesDeltaPct != null && expensesDeltaPct < 0
+                  ? 'text-error-600 dark:text-error-400'
+                  : 'text-success-600 dark:text-success-400'
+              }`}
+            >
+              {formatPct(expensesDeltaPct)}
+            </p>
           </div>
-          <div className='p-4 bg-gray-50/80 rounded-xl border border-gray-200/60'>
-            <p className='text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+          <div className='p-4 bg-gray-50/80 dark:bg-gray-700/80 rounded-xl border border-gray-200/60 dark:border-gray-600'>
+            <p className='text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
               Total Invoice
             </p>
-            <p className='text-lg font-semibold text-gray-900 mt-0.5'>
-              ₦10,000
+            <p className='text-lg font-semibold text-gray-900 dark:text-gray-100 mt-0.5'>
+              {formatCurrency(invoiceTotal)}
             </p>
-            <p className='text-sm font-medium text-success-600 mt-0.5'>+8.5%</p>
+            <p
+              className={`text-sm font-medium mt-0.5 ${
+                invoiceDeltaPct != null && invoiceDeltaPct < 0
+                  ? 'text-error-600 dark:text-error-400'
+                  : 'text-success-600 dark:text-success-400'
+              }`}
+            >
+              {formatPct(invoiceDeltaPct)}
+            </p>
           </div>
         </div>
         <div className='h-56 sm:h-64 min-w-0'>
           <ResponsiveContainer width='100%' height='100%'>
             <BarChart
-              data={BAR_DATA}
-              margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+              data={barChartData}
+              // Extra padding so axis labels + top ticks don't get clipped.
+              margin={{ top: 16, right: 12, left: 24, bottom: 8 }}
               barCategoryGap='12%'
             >
-              <CartesianGrid
-                strokeDasharray='3 3'
-                className='stroke-gray-200'
+              <CartesianGrid strokeDasharray='3 3' stroke={chartStroke} />
+              <XAxis
+                dataKey='month'
+                tick={{ fontSize: 12, fill: chartTickFill }}
+                stroke={chartStroke}
+                tickMargin={8}
               />
-              <XAxis dataKey='month' tick={{ fontSize: 12 }} stroke='#9ca3af' />
               <YAxis
-                tick={{ fontSize: 12 }}
-                stroke='#9ca3af'
-                tickFormatter={v => `₦${v}k`}
+                tick={{ fontSize: 12, fill: chartTickFill }}
+                stroke={chartStroke}
+                tickFormatter={(v: number | string) =>
+                  formatCurrency(Number(v ?? 0))
+                }
+                width={90}
+                tickMargin={10}
               />
               <Tooltip
                 formatter={(value: number | undefined) =>
-                  value != null ? [`₦${value}k`, ''] : ['', '']
+                  value != null ? [formatCurrency(value), ''] : ['', '']
                 }
-                contentStyle={{ fontSize: 12 }}
+                contentStyle={{
+                  fontSize: 12,
+                  backgroundColor: isDark ? '#1f2937' : '#fff',
+                  border: isDark ? '1px solid #374151' : '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  color: isDark ? '#e5e7eb' : '#111827',
+                }}
+                labelStyle={{ color: isDark ? '#e5e7eb' : '#111827' }}
+                itemStyle={{ color: isDark ? '#e5e7eb' : '#111827' }}
+                cursor={{
+                  fill: isDark
+                    ? 'rgba(55, 65, 81, 0.5)'
+                    : 'rgba(0, 0, 0, 0.06)',
+                  stroke: isDark ? '#4b5563' : '#e5e7eb',
+                }}
               />
-              {/* Order here sets bar order left-to-right: Revenue (green), Expenses (red), Invoice (blue) */}
+              {/* Order here sets bar order left-to-right: Revenue (green), Expenses (red) */}
               <Bar
                 dataKey='revenue'
                 name='Revenue'
@@ -348,36 +778,23 @@ const Dashboard: React.FC = () => {
                 fill='#ef4444'
                 radius={[2, 2, 0, 0]}
               />
-              <Bar
-                dataKey='invoice'
-                name='Invoice'
-                fill='#073E60'
-                radius={[2, 2, 0, 0]}
-              />
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className='flex flex-wrap items-center justify-center gap-6 pt-3 border-t border-gray-100'>
-          <span className='flex items-center gap-2 text-sm text-gray-700'>
+        <div className='flex flex-wrap items-center justify-center gap-6 pt-3 border-t border-gray-100 dark:border-gray-700'>
+          <span className='flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300'>
             <span
               className='w-3 h-3 rounded-full bg-green-600 shrink-0'
               aria-hidden
             />
             Revenue
           </span>
-          <span className='flex items-center gap-2 text-sm text-gray-700'>
+          <span className='flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300'>
             <span
               className='w-3 h-3 rounded-full bg-red-500 shrink-0'
               aria-hidden
             />
             Expenses
-          </span>
-          <span className='flex items-center gap-2 text-sm text-gray-700'>
-            <span
-              className='w-3 h-3 rounded-full bg-[#073E60] shrink-0'
-              aria-hidden
-            />
-            Invoice
           </span>
         </div>
       </div>
@@ -386,23 +803,25 @@ const Dashboard: React.FC = () => {
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6'>
         <div className='card card-hover'>
           <div className='flex flex-nowrap items-center justify-between gap-2 mb-4 min-w-0'>
-            <h2 className='text-lg font-semibold text-gray-900 min-w-0 truncate'>
+            <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100 min-w-0 truncate'>
               Paid vs Unpaid
             </h2>
-            <select
-              className='input-field py-1.5 text-sm w-28 shrink-0'
-              defaultValue='last-6'
-            >
-              <option value='last-6'>Last 6 months</option>
-            </select>
+            <DateFilterDropdown
+              state={paidUnpaidDateFilter}
+              onStateChange={setPaidUnpaidDateFilter}
+            />
           </div>
-          <p className='text-2xl font-semibold text-gray-900 mb-1'>₦280,932</p>
-          <p className='text-sm text-gray-500 mb-4'>Total Invoices</p>
+          <p className='text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-1'>
+            {formatCurrency(invoiceTotalAmount)}
+          </p>
+          <p className='text-sm text-gray-500 dark:text-gray-400 mb-4'>
+            Total Invoices
+          </p>
           <div className='flex flex-col items-center'>
             <ResponsiveContainer width='100%' height={200}>
               <PieChart>
                 <Pie
-                  data={PAID_UNPAID_DATA}
+                  data={paidUnpaidData}
                   cx='50%'
                   cy='50%'
                   innerRadius={56}
@@ -410,7 +829,7 @@ const Dashboard: React.FC = () => {
                   paddingAngle={1}
                   dataKey='value'
                 >
-                  {PAID_UNPAID_DATA.map((entry, index) => (
+                  {paidUnpaidData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -418,11 +837,17 @@ const Dashboard: React.FC = () => {
                   formatter={(value: number | undefined) =>
                     value != null ? [`${value}%`, ''] : ['', '']
                   }
+                  contentStyle={{
+                    backgroundColor: isDark ? '#1f2937' : '#fff',
+                    border: isDark ? '1px solid #374151' : '1px solid #e5e7eb',
+                    borderRadius: 8,
+                    color: isDark ? '#e5e7eb' : '#111827',
+                  }}
                 />
               </PieChart>
             </ResponsiveContainer>
-            <div className='flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-gray-600'>
-              {PAID_UNPAID_DATA.map(d => (
+            <div className='flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-300'>
+              {paidUnpaidData.map(d => (
                 <span key={d.name} className='flex items-center gap-1.5'>
                   <span
                     className='w-2.5 h-2.5 rounded-full shrink-0'
@@ -438,23 +863,25 @@ const Dashboard: React.FC = () => {
 
         <div className='card card-hover'>
           <div className='flex flex-nowrap items-center justify-between gap-2 mb-4 min-w-0'>
-            <h2 className='text-lg font-semibold text-gray-900 min-w-0 truncate'>
+            <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100 min-w-0 truncate'>
               Revenue by category
             </h2>
-            <select
-              className='input-field py-1.5 text-sm w-28 shrink-0'
-              defaultValue='last-6'
-            >
-              <option value='last-6'>Last 6 months</option>
-            </select>
+            <DateFilterDropdown
+              state={revenueByCategoryDateFilter}
+              onStateChange={setRevenueByCategoryDateFilter}
+            />
           </div>
-          <p className='text-2xl font-semibold text-gray-900 mb-1'>₦180,932</p>
-          <p className='text-sm text-gray-500 mb-4'>Total Revenue</p>
+          <p className='text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-1'>
+            {formatCurrency(revenueTotalAmount)}
+          </p>
+          <p className='text-sm text-gray-500 dark:text-gray-400 mb-4'>
+            Total Revenue
+          </p>
           <div className='flex flex-col items-center'>
             <ResponsiveContainer width='100%' height={200}>
               <PieChart>
                 <Pie
-                  data={REVENUE_BY_CATEGORY}
+                  data={revenueByCategoryData}
                   cx='50%'
                   cy='50%'
                   innerRadius={56}
@@ -462,7 +889,7 @@ const Dashboard: React.FC = () => {
                   paddingAngle={1}
                   dataKey='value'
                 >
-                  {REVENUE_BY_CATEGORY.map((entry, index) => (
+                  {revenueByCategoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -470,11 +897,17 @@ const Dashboard: React.FC = () => {
                   formatter={(value: number | undefined) =>
                     value != null ? [`${value}%`, ''] : ['', '']
                   }
+                  contentStyle={{
+                    backgroundColor: isDark ? '#1f2937' : '#fff',
+                    border: isDark ? '1px solid #374151' : '1px solid #e5e7eb',
+                    borderRadius: 8,
+                    color: isDark ? '#e5e7eb' : '#111827',
+                  }}
                 />
               </PieChart>
             </ResponsiveContainer>
-            <div className='flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm text-gray-600'>
-              {REVENUE_BY_CATEGORY.map(d => (
+            <div className='flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm text-gray-600 dark:text-gray-300'>
+              {revenueByCategoryData.map(d => (
                 <span key={d.name} className='flex items-center gap-1.5'>
                   <span
                     className='w-2.5 h-2.5 rounded-full shrink-0'
@@ -490,23 +923,25 @@ const Dashboard: React.FC = () => {
 
         <div className='card card-hover'>
           <div className='flex flex-nowrap items-center justify-between gap-2 mb-4 min-w-0'>
-            <h2 className='text-lg font-semibold text-gray-900 min-w-0 truncate'>
+            <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100 min-w-0 truncate'>
               Expenses by category
             </h2>
-            <select
-              className='input-field py-1.5 text-sm w-28 shrink-0'
-              defaultValue='last-6'
-            >
-              <option value='last-6'>Last 6 months</option>
-            </select>
+            <DateFilterDropdown
+              state={expensesByCategoryDateFilter}
+              onStateChange={setExpensesByCategoryDateFilter}
+            />
           </div>
-          <p className='text-2xl font-semibold text-gray-900 mb-1'>₦80,932</p>
-          <p className='text-sm text-gray-500 mb-4'>Total Expense</p>
+          <p className='text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-1'>
+            {formatCurrency(expensesTotalAmount)}
+          </p>
+          <p className='text-sm text-gray-500 dark:text-gray-400 mb-4'>
+            Total Expense
+          </p>
           <div className='flex flex-col items-center'>
             <ResponsiveContainer width='100%' height={200}>
               <PieChart>
                 <Pie
-                  data={EXPENSES_BY_CATEGORY}
+                  data={expensesByCategoryData}
                   cx='50%'
                   cy='50%'
                   innerRadius={56}
@@ -514,7 +949,7 @@ const Dashboard: React.FC = () => {
                   paddingAngle={1}
                   dataKey='value'
                 >
-                  {EXPENSES_BY_CATEGORY.map((entry, index) => (
+                  {expensesByCategoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -522,11 +957,17 @@ const Dashboard: React.FC = () => {
                   formatter={(value: number | undefined) =>
                     value != null ? [`${value}%`, ''] : ['', '']
                   }
+                  contentStyle={{
+                    backgroundColor: isDark ? '#1f2937' : '#fff',
+                    border: isDark ? '1px solid #374151' : '1px solid #e5e7eb',
+                    borderRadius: 8,
+                    color: isDark ? '#e5e7eb' : '#111827',
+                  }}
                 />
               </PieChart>
             </ResponsiveContainer>
-            <div className='flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm text-gray-600'>
-              {EXPENSES_BY_CATEGORY.map(d => (
+            <div className='flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm text-gray-600 dark:text-gray-300'>
+              {expensesByCategoryData.map(d => (
                 <span key={d.name} className='flex items-center gap-1.5'>
                   <span
                     className='w-2.5 h-2.5 rounded-full shrink-0'
@@ -544,17 +985,17 @@ const Dashboard: React.FC = () => {
       {/* Recent invoice */}
       <div className='card card-hover'>
         <div className='flex flex-wrap items-center justify-between gap-4 mb-4'>
-          <h2 className='text-lg font-semibold text-gray-900'>
+          <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
             Recent invoice
           </h2>
           <Link
             to='/sales/invoice'
-            className='text-sm font-medium text-[#073E60] hover:underline'
+            className='text-sm font-medium text-[#073E60] dark:text-primary-400 hover:underline'
           >
             Go to invoice &gt;
           </Link>
         </div>
-        <div className='flex flex-wrap gap-2 mb-4 border-b border-gray-200'>
+        <div className='flex flex-wrap gap-2 mb-4 border-b border-gray-200 dark:border-gray-700'>
           {INVOICE_TABS.map(tab => (
             <button
               key={tab}
@@ -562,8 +1003,8 @@ const Dashboard: React.FC = () => {
               onClick={() => setInvoiceTab(tab)}
               className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab === invoiceTab
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-primary-600 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
               {tab}
@@ -573,7 +1014,7 @@ const Dashboard: React.FC = () => {
         <div className='overflow-x-auto'>
           <div className='flex items-center gap-2 mb-3 min-w-[600px]'>
             <div className='relative flex-1 max-w-xs'>
-              <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400' />
+              <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500' />
               <input
                 type='search'
                 placeholder='Search...'
@@ -583,7 +1024,7 @@ const Dashboard: React.FC = () => {
           </div>
           <table className='w-full min-w-[700px] text-sm' role='grid'>
             <thead>
-              <tr className='border-b border-gray-200 text-left text-gray-500 font-medium'>
+              <tr className='border-b border-gray-200 dark:border-gray-700 text-left text-gray-500 dark:text-gray-400 font-medium'>
                 <th className='py-3 pr-4'>Invoice ID</th>
                 <th className='py-3 pr-4'>Amount</th>
                 <th className='py-3 pr-4'>Payment Received</th>
@@ -594,42 +1035,74 @@ const Dashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {INVOICE_ROWS.map(row => (
-                <tr
-                  key={row.id}
-                  className='border-b border-gray-100 hover:bg-gray-50/50 transition-colors'
-                >
-                  <td className='py-3 pr-4 font-medium text-gray-900'>
-                    {row.id}
-                  </td>
-                  <td className='py-3 pr-4 text-gray-700'>{row.amount}</td>
-                  <td className='py-3 pr-4 text-gray-700'>
-                    {row.paymentReceived}
-                  </td>
-                  <td className='py-3 pr-4 text-gray-700'>
-                    <span className='block'>{row.created}</span>
-                    <span className='text-xs text-gray-500'>{row.due}</span>
-                  </td>
-                  <td className='py-3 pr-4 text-gray-700'>
-                    <span className='block font-medium text-gray-900'>
-                      {row.customer}
-                    </span>
-                    <span className='text-xs text-gray-500'>{row.email}</span>
-                  </td>
-                  <td className='py-3 pr-4'>
-                    <StatusBadge status={row.status} />
-                  </td>
-                  <td className='py-3'>
-                    <button
-                      type='button'
-                      className='p-1 text-gray-400 hover:text-gray-600 rounded'
-                      aria-label='More options'
-                    >
-                      <MoreHorizontal className='h-4 w-4' />
-                    </button>
+              {isRecentInvoicesLoading && recentInvoiceRows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className='py-4 pr-4 text-sm text-gray-500 dark:text-gray-400'
+                  >
+                    Loading recent invoices…
                   </td>
                 </tr>
-              ))}
+              )}
+              {!isRecentInvoicesLoading &&
+                recentInvoiceRows.map(row => (
+                  <tr
+                    key={row.id}
+                    className='border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors'
+                  >
+                    <td className='py-3 pr-4 font-medium text-gray-900 dark:text-gray-100'>
+                      <Link
+                        to={`/sales/invoice/${row.id}`}
+                        className='text-[#073E60] dark:text-primary-400 hover:underline'
+                      >
+                        {row.publicId}
+                      </Link>
+                    </td>
+                    <td className='py-3 pr-4 text-gray-700 dark:text-gray-300'>
+                      {formatCurrency(row.amount)}
+                    </td>
+                    <td className='py-3 pr-4 text-gray-700 dark:text-gray-300'>
+                      {formatCurrency(row.paymentReceived)}
+                    </td>
+                    <td className='py-3 pr-4 text-gray-700 dark:text-gray-300'>
+                      <span className='block'>{row.created}</span>
+                      <span className='text-xs text-gray-500 dark:text-gray-400'>
+                        {row.due}
+                      </span>
+                    </td>
+                    <td className='py-3 pr-4 text-gray-700 dark:text-gray-300'>
+                      <span className='block font-medium text-gray-900 dark:text-gray-100'>
+                        {row.customer}
+                      </span>
+                      <span className='text-xs text-gray-500 dark:text-gray-400'>
+                        {row.email}
+                      </span>
+                    </td>
+                    <td className='py-3 pr-4'>
+                      <StatusBadge status={row.status} />
+                    </td>
+                    <td className='py-3'>
+                      <button
+                        type='button'
+                        className='p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded'
+                        aria-label='More options'
+                      >
+                        <MoreHorizontal className='h-4 w-4' />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              {!isRecentInvoicesLoading && recentInvoiceRows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className='py-4 pr-4 text-sm text-gray-500 dark:text-gray-400'
+                  >
+                    No recent invoices found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

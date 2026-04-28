@@ -33,8 +33,24 @@
     <title>Asture FMS</title>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div id="root">
+      <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;background:#f3f4f6;color:#111;" id="root-fallback">
+        <p>Loading Asture FMS…</p>
+      </div>
+    </div>
+    <script type="module">
+      window.__ASTURE_LOAD_ERROR__ = null;
+      try {
+        await import('/src/main.tsx');
+      } catch (e) {
+        window.__ASTURE_LOAD_ERROR__ = e;
+        var root = document.getElementById('root');
+        var fallback = document.getElementById('root-fallback');
+        if (root && fallback) {
+          fallback.innerHTML = '<div style="padding:24px;max-width:560px;"><h2 style="margin:0 0 8px 0;font-size:18px;">Failed to load app</h2><pre style="margin:0;font-size:12px;overflow:auto;background:#fee;padding:12px;border-radius:8px;">' + (e && (e.message || String(e))) + '</pre><p style="margin:12px 0 0 0;font-size:14px;">Check the browser console (F12) for details.</p></div>';
+        }
+      }
+    </script>
     
     <!-- Loading fallback -->
     <noscript>
