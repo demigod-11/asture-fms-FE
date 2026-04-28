@@ -17,11 +17,27 @@ import {
   setSessionExpiredFlag,
 } from './authStorage';
 
+function getViteApiUrl(): string | undefined {
+  // In Vite (Netlify builds), this is the canonical way to read env vars.
+  // In some test runners, `import.meta` may not be available.
+  try {
+    const env = (
+      import.meta as unknown as {
+        env?: Record<string, string | undefined>;
+      }
+    ).env;
+    return env?.VITE_API_URL;
+  } catch {
+    return undefined;
+  }
+}
+
 const baseURL =
   (typeof window !== 'undefined' &&
     (window as unknown as { __ASTURE_API_URL__?: string })
       .__ASTURE_API_URL__) ||
-  // Jest/CJS can't parse `import.meta`, so prefer process env for tests/build tooling.
+  getViteApiUrl() ||
+  // Fallback for tests / tooling environments.
   (typeof process !== 'undefined' &&
     (process as unknown as { env?: Record<string, string | undefined> }).env
       ?.VITE_API_URL) ||
