@@ -9,8 +9,6 @@ import {
   FileWarning,
   TrendingUp,
   AlertTriangle,
-  Search,
-  MoreHorizontal,
 } from 'lucide-react';
 import {
   BarChart,
@@ -25,6 +23,9 @@ import {
   Cell,
 } from 'recharts';
 import Alert from '@/components/Alert';
+import ListPage from '@/components/ListPage';
+import StatusBadge from '@/components/StatusBadge';
+import { displayPublicId } from '@/utils/displayId';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useProfile } from '@/contexts/ProfileContext';
@@ -139,32 +140,11 @@ interface DashboardInvoiceRow {
   id: string;
   publicId: string;
   amount: number;
-  paymentReceived: number;
   created: string;
   due: string;
   customer: string;
   email: string;
   status: InvoiceStatus;
-}
-
-function StatusBadge({ status }: { status: InvoiceStatus }) {
-  const classMap: Record<InvoiceStatus, string> = {
-    paid: 'badge badge-success',
-    overdue: 'badge badge-error',
-    sent: 'badge badge-warning',
-    partially_paid: 'badge badge-info',
-    draft: 'badge bg-gray-100 text-gray-700',
-    cancelled: 'badge bg-gray-100 text-gray-500',
-  };
-  const labelMap: Record<InvoiceStatus, string> = {
-    paid: 'Paid',
-    overdue: 'Overdue',
-    sent: 'Pending',
-    partially_paid: 'Partially Paid',
-    draft: 'Draft',
-    cancelled: 'Cancelled',
-  };
-  return <span className={classMap[status]}>{labelMap[status]}</span>;
 }
 
 const INVOICE_TABS = [
@@ -184,6 +164,7 @@ const Dashboard: React.FC = () => {
   const fromLogin =
     (location.state as { fromLogin?: boolean } | null)?.fromLogin === true;
   const [invoiceTab, setInvoiceTab] = useState(INVOICE_TABS[0]);
+  const [invoiceSearch, setInvoiceSearch] = useState('');
   const [showSuccessAlert, setShowSuccessAlert] = useState(fromLogin);
   // Each section controls its own date range (changing one shouldn't change all).
   const [overviewDateFilter, setOverviewDateFilter] = useState<DateFilterState>(
@@ -313,24 +294,6 @@ const Dashboard: React.FC = () => {
     { enabled: Boolean(organisationId) }
   );
 
-  const { data: prevInvoiceStatusBreakdown } = useQuery<
-    InvoiceStatusBreakdownResponse | undefined
-  >(
-    [
-      'reports',
-      'invoice-status-breakdown',
-      organisationId,
-      prevFromStr,
-      prevToStr,
-    ],
-    () =>
-      getInvoiceStatusBreakdown(organisationId, {
-        from_date: prevFromStr,
-        to_date: prevToStr,
-      }),
-    { enabled: Boolean(organisationId) }
-  );
-
   const { data: revenueByCategory } = useQuery<
     RevenueByCategoryResponse | undefined
   >(
@@ -385,8 +348,12 @@ const Dashboard: React.FC = () => {
         0
       )
     : 0;
-  const invoiceTotal = arApSummary
-    ? Number(arApSummary.receivables.total ?? 0)
+  const invoiceTotal = activityChart
+    ? activityChart.periods.reduce(
+        (sum: number, p: ActivityChartResponse['periods'][number]) =>
+          sum + Number(p.invoice ?? 0),
+        0
+      )
     : 0;
 
   const barChartData =
@@ -396,6 +363,7 @@ const Dashboard: React.FC = () => {
             month: p.label,
             revenue: Number(p.income ?? 0),
             expenses: Number(p.expense ?? 0),
+            invoice: Number(p.invoice ?? 0),
           })
         )
       : [];
@@ -453,13 +421,15 @@ const Dashboard: React.FC = () => {
       : 0;
   }, [prevActivityChart]);
 
-  const prevInvoiceTotalAmount = useMemo(() => {
-    const buckets = prevInvoiceStatusBreakdown?.buckets ?? [];
-    return buckets.reduce(
-      (sum: number, b: BreakdownItem) => sum + toNumber(b.amount),
-      0
-    );
-  }, [prevInvoiceStatusBreakdown]);
+  const prevInvoiceTotal = useMemo(() => {
+    return prevActivityChart
+      ? prevActivityChart.periods.reduce(
+          (sum: number, p: ActivityChartResponse['periods'][number]) =>
+            sum + Number(p.invoice ?? 0),
+          0
+        )
+      : 0;
+  }, [prevActivityChart]);
 
   const revenueDeltaPct = useMemo(
     () => percentChange(revenueTotal, prevRevenueTotal),
@@ -470,8 +440,8 @@ const Dashboard: React.FC = () => {
     [expensesTotal, prevExpensesTotal]
   );
   const invoiceDeltaPct = useMemo(
-    () => percentChange(invoiceTotal, prevInvoiceTotalAmount),
-    [invoiceTotal, prevInvoiceTotalAmount]
+    () => percentChange(invoiceTotal, prevInvoiceTotal),
+    [invoiceTotal, prevInvoiceTotal]
   );
 
   const revenueTotalAmount = useMemo(() => {
@@ -536,17 +506,28 @@ const Dashboard: React.FC = () => {
 
       return {
         id: inv.id,
-        publicId: inv.public_id ?? inv.invoice_number,
+        publicId: displayPublicId(inv.public_id ?? inv.invoice_number),
         amount: Number(inv.total ?? 0),
-        paymentReceived: 0,
         created: createdDisplay,
         due: dueDisplay,
-        customer: 'Customer',
-        email: '',
+        customer: displayPublicId(inv.customer_name),
+        email: inv.customer_email ?? '',
         status: inv.status,
       };
     });
   }, [recentInvoicesData, invoiceTab]);
+
+  const searchedInvoiceRows = useMemo(() => {
+    if (!invoiceSearch.trim()) return recentInvoiceRows;
+    const q = invoiceSearch.trim().toLowerCase();
+    return recentInvoiceRows.filter(
+      r =>
+        r.publicId.toLowerCase().includes(q) ||
+        r.customer.toLowerCase().includes(q) ||
+        r.email.toLowerCase().includes(q) ||
+        r.status.toLowerCase().includes(q)
+    );
+  }, [recentInvoiceRows, invoiceSearch]);
 
   if (!organisationId) {
     return (
@@ -656,7 +637,7 @@ const Dashboard: React.FC = () => {
               </span>
               <span className='flex items-center gap-1.5'>
                 <span
-                  className='w-2.5 h-2.5 rounded-full bg-[#073E60]'
+                  className='w-2.5 h-2.5 rounded-full bg-primary-600'
                   aria-hidden
                 />
                 Invoice
@@ -778,6 +759,12 @@ const Dashboard: React.FC = () => {
                 fill='#ef4444'
                 radius={[2, 2, 0, 0]}
               />
+              <Bar
+                dataKey='invoice'
+                name='Invoice'
+                fill='#073E60'
+                radius={[2, 2, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -795,6 +782,13 @@ const Dashboard: React.FC = () => {
               aria-hidden
             />
             Expenses
+          </span>
+          <span className='flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300'>
+            <span
+              className='w-3 h-3 rounded-full bg-primary-600 shrink-0'
+              aria-hidden
+            />
+            Invoice
           </span>
         </div>
       </div>
@@ -1011,101 +1005,71 @@ const Dashboard: React.FC = () => {
             </button>
           ))}
         </div>
-        <div className='overflow-x-auto'>
-          <div className='flex items-center gap-2 mb-3 min-w-[600px]'>
-            <div className='relative flex-1 max-w-xs'>
-              <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500' />
-              <input
-                type='search'
-                placeholder='Search...'
-                className='input-field pl-8 py-1.5 text-sm'
-              />
-            </div>
-          </div>
-          <table className='w-full min-w-[700px] text-sm' role='grid'>
-            <thead>
-              <tr className='border-b border-gray-200 dark:border-gray-700 text-left text-gray-500 dark:text-gray-400 font-medium'>
-                <th className='py-3 pr-4'>Invoice ID</th>
-                <th className='py-3 pr-4'>Amount</th>
-                <th className='py-3 pr-4'>Payment Received</th>
-                <th className='py-3 pr-4'>Created</th>
-                <th className='py-3 pr-4'>Customer</th>
-                <th className='py-3 pr-4'>Status</th>
-                <th className='py-3 w-8' aria-label='Actions' />
-              </tr>
-            </thead>
-            <tbody>
-              {isRecentInvoicesLoading && recentInvoiceRows.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className='py-4 pr-4 text-sm text-gray-500 dark:text-gray-400'
-                  >
-                    Loading recent invoices…
-                  </td>
-                </tr>
-              )}
-              {!isRecentInvoicesLoading &&
-                recentInvoiceRows.map(row => (
-                  <tr
-                    key={row.id}
-                    className='border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-700/50 transition-colors'
-                  >
-                    <td className='py-3 pr-4 font-medium text-gray-900 dark:text-gray-100'>
-                      <Link
-                        to={`/sales/invoice/${row.id}`}
-                        className='text-[#073E60] dark:text-primary-400 hover:underline'
-                      >
-                        {row.publicId}
-                      </Link>
-                    </td>
-                    <td className='py-3 pr-4 text-gray-700 dark:text-gray-300'>
-                      {formatCurrency(row.amount)}
-                    </td>
-                    <td className='py-3 pr-4 text-gray-700 dark:text-gray-300'>
-                      {formatCurrency(row.paymentReceived)}
-                    </td>
-                    <td className='py-3 pr-4 text-gray-700 dark:text-gray-300'>
-                      <span className='block'>{row.created}</span>
-                      <span className='text-xs text-gray-500 dark:text-gray-400'>
-                        {row.due}
-                      </span>
-                    </td>
-                    <td className='py-3 pr-4 text-gray-700 dark:text-gray-300'>
-                      <span className='block font-medium text-gray-900 dark:text-gray-100'>
-                        {row.customer}
-                      </span>
-                      <span className='text-xs text-gray-500 dark:text-gray-400'>
-                        {row.email}
-                      </span>
-                    </td>
-                    <td className='py-3 pr-4'>
-                      <StatusBadge status={row.status} />
-                    </td>
-                    <td className='py-3'>
-                      <button
-                        type='button'
-                        className='p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded'
-                        aria-label='More options'
-                      >
-                        <MoreHorizontal className='h-4 w-4' />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              {!isRecentInvoicesLoading && recentInvoiceRows.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className='py-4 pr-4 text-sm text-gray-500 dark:text-gray-400'
-                  >
-                    No recent invoices found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <ListPage<DashboardInvoiceRow>
+          search={{
+            value: invoiceSearch,
+            onChange: setInvoiceSearch,
+            placeholder: 'Search...',
+          }}
+          data={searchedInvoiceRows}
+          getRowId={row => row.id}
+          columns={[
+            {
+              id: 'id',
+              header: 'Invoice ID',
+              cell: row => (
+                <Link
+                  to={`/sales/invoice/${row.id}`}
+                  className='text-primary-600 dark:text-primary-400 hover:underline'
+                >
+                  {row.publicId}
+                </Link>
+              ),
+            },
+            {
+              id: 'amount',
+              header: 'Amount',
+              cell: row => formatCurrency(row.amount),
+            },
+            {
+              id: 'created',
+              header: 'Created',
+              cell: row => (
+                <>
+                  <span className='block'>{row.created}</span>
+                  <span className='text-xs text-gray-500 dark:text-gray-400'>
+                    {row.due}
+                  </span>
+                </>
+              ),
+            },
+            {
+              id: 'customer',
+              header: 'Customer',
+              cell: row => (
+                <>
+                  <span className='block font-medium text-gray-900 dark:text-gray-100'>
+                    {row.customer}
+                  </span>
+                  {row.email ? (
+                    <span className='text-xs text-gray-500 dark:text-gray-400'>
+                      {row.email}
+                    </span>
+                  ) : null}
+                </>
+              ),
+            },
+            {
+              id: 'status',
+              header: 'Status',
+              cell: row => <StatusBadge status={row.status} family='invoice' />,
+            },
+          ]}
+          selectionLabel='recent invoices'
+          isLoading={isRecentInvoicesLoading}
+          emptyMessage='No recent invoices found.'
+          tableMinWidth='700px'
+        />
       </div>
     </div>
   );

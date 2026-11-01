@@ -4,21 +4,25 @@
 import type { components } from '@/generated/api';
 import { apiClient } from './apiClient';
 
-type BillListResponse = components['schemas']['BillListResponse'];
-type BillResponse = components['schemas']['BillResponse'];
+type BillListResponseGenerated = components['schemas']['BillListResponse'];
+type BillResponseGenerated = components['schemas']['BillResponse'];
 type BillCreateRequest = components['schemas']['BillCreateRequest'];
 type BillUpdateRequest = components['schemas']['BillUpdateRequest'];
 type BillStatus = components['schemas']['BillStatus'];
 
+export type BillResponse = BillResponseGenerated & {
+  public_id?: string;
+  vendor_name?: string | null;
+  vendor_email?: string | null;
+};
+
+export type BillListResponse = Omit<BillListResponseGenerated, 'items'> & {
+  items: BillResponse[];
+};
+
 const BILLS = '/bills';
 
-export type {
-  BillResponse,
-  BillListResponse,
-  BillCreateRequest,
-  BillUpdateRequest,
-  BillStatus,
-};
+export type { BillCreateRequest, BillUpdateRequest, BillStatus };
 
 export interface ListBillsParams {
   page?: number;
@@ -27,6 +31,7 @@ export interface ListBillsParams {
   vendor_id?: string | null | undefined;
   from_date?: string | null | undefined;
   to_date?: string | null | undefined;
+  search?: string | null | undefined;
 }
 
 export async function listBills(
@@ -41,6 +46,7 @@ export async function listBills(
       vendor_id: params.vendor_id ?? undefined,
       from_date: params.from_date ?? undefined,
       to_date: params.to_date ?? undefined,
+      search: params.search || undefined,
     },
     headers: { 'X-Organisation-Id': organisationId },
   });

@@ -204,6 +204,7 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
         </div>
 
         <form
+          id='invite-member-form'
           onSubmit={handleSubmit}
           className='flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-5'
         >
@@ -394,9 +395,9 @@ const InviteTeamMemberDrawer: React.FC<InviteTeamMemberDrawerProps> = ({
           </button>
           <button
             type='submit'
-            onClick={handleSubmit}
+            form='invite-member-form'
             disabled={!canSubmit}
-            className='px-4 py-2.5 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed'
+            className='px-4 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-800 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed'
           >
             {emailsToInvite.length > 1
               ? `Send ${emailsToInvite.length} invites`

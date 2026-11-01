@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown } from 'lucide-react';
+import { useQuery } from 'react-query';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useProfile } from '@/contexts/ProfileContext';
+import { listCoas, type ChartOfAccountResponse } from '@/services/coaApi';
+import { expenseFormSchema } from '@/lib/formSchemas';
 
 export interface AddExpensePayload {
   description: string;
   amount: string;
   expense_date: string;
   payment_status: string;
+  coa_id?: string;
 }
 
 interface AddExpenseDrawerProps {
@@ -16,16 +21,14 @@ interface AddExpenseDrawerProps {
   onSaved?: (payload: AddExpensePayload) => void;
   isSaving?: boolean;
   saveError?: string | undefined;
+  initial?: AddExpensePayload | null;
 }
 
-const EXPENSE_CATEGORIES = [
-  'Supplies',
-  'Travel',
-  'Software',
-  'Utilities',
-  'Other',
+const EXPENSE_STATUSES: { label: string; value: string }[] = [
+  { label: 'Pending', value: 'unpaid' },
+  { label: 'Paid', value: 'paid' },
+  { label: 'Reimbursed', value: 'reimbursed' },
 ];
-const EXPENSE_STATUSES = ['Pending', 'Paid', 'Reimbursed'];
 const EXPENSE_FORM_ID = 'add-expense-form';
 
 const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
@@ -33,31 +36,70 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
   onClose,
   onSaved,
   isSaving = false,
-  saveError: _saveError,
+  saveError,
+  initial = null,
 }) => {
   const { symbol } = useCurrency();
+  const { profiles } = useProfile();
+  const organisationId = profiles[0]?.organisation_id ?? '';
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('');
+  const [coaId, setCoaId] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState('unpaid');
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [formError, setFormError] = useState<string | undefined>();
+
+  React.useEffect(() => {
+    if (!open) return;
+    setDescription(initial?.description ?? '');
+    setCoaId(initial?.coa_id ?? '');
+    setAmount(initial?.amount ?? '');
+    setDate(initial?.expense_date ?? '');
+    setStatus(initial?.payment_status ?? 'unpaid');
+    setFormError(undefined);
+  }, [open, initial]);
+
+  const { data: coaData } = useQuery(
+    ['coa', 'expense-form', organisationId],
+    () =>
+      listCoas(organisationId, {
+        page: 1,
+        page_size: 100,
+        status: 'active',
+      }),
+    { enabled: Boolean(organisationId && open) }
+  );
+
+  const accounts: ChartOfAccountResponse[] = coaData?.items ?? [];
+  const selectedAccount = accounts.find(a => a.id === coaId);
+  const selectedStatus =
+    EXPENSE_STATUSES.find(s => s.value === status) ?? EXPENSE_STATUSES[0];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const normalizedStatus = (status || 'Pending').toLowerCase();
-    onSaved?.({
+    const normalizedStatus = (status || 'unpaid').toLowerCase();
+    const paymentStatus =
+      normalizedStatus === 'pending' ? 'unpaid' : normalizedStatus;
+    const parsed = expenseFormSchema.safeParse({
       description: description.trim(),
       amount: amount.trim(),
       expense_date: date,
       payment_status:
-        normalizedStatus === 'pending' ||
-        normalizedStatus === 'paid' ||
-        normalizedStatus === 'reimbursed'
-          ? normalizedStatus
-          : 'pending',
+        paymentStatus === 'unpaid' ||
+        paymentStatus === 'paid' ||
+        paymentStatus === 'reimbursed'
+          ? paymentStatus
+          : 'unpaid',
+      coa_id: coaId || undefined,
     });
+    if (!parsed.success) {
+      setFormError(parsed.error.issues[0]?.message ?? 'Check the form');
+      return;
+    }
+    setFormError(undefined);
+    onSaved?.(parsed.data);
   };
 
   if (!open) return null;
@@ -80,7 +122,7 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
             id='add-expense-title'
             className='text-lg font-semibold text-gray-900 dark:text-gray-100'
           >
-            Add expense
+            {initial ? 'Edit expense' : 'Add expense'}
           </h2>
           <button
             type='button'
@@ -131,30 +173,38 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
               >
                 <span
                   className={
-                    category
+                    selectedAccount
                       ? 'text-gray-900 dark:text-gray-100'
                       : 'text-gray-500 dark:text-gray-400'
                   }
                 >
-                  {category || 'Select category'}
+                  {selectedAccount
+                    ? `${selectedAccount.code} · ${selectedAccount.name}`
+                    : 'Select category'}
                 </span>
                 <ChevronDown className='h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0' />
               </button>
               {categoryDropdownOpen && (
-                <div className='absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1'>
-                  {EXPENSE_CATEGORIES.map(cat => (
-                    <button
-                      key={cat}
-                      type='button'
-                      onClick={() => {
-                        setCategory(cat);
-                        setCategoryDropdownOpen(false);
-                      }}
-                      className='w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    >
-                      {cat}
-                    </button>
-                  ))}
+                <div className='absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1 max-h-56 overflow-y-auto'>
+                  {accounts.length === 0 ? (
+                    <div className='px-3 py-2 text-sm text-gray-500'>
+                      No accounts found.
+                    </div>
+                  ) : (
+                    accounts.map(acc => (
+                      <button
+                        key={acc.id}
+                        type='button'
+                        onClick={() => {
+                          setCoaId(acc.id);
+                          setCategoryDropdownOpen(false);
+                        }}
+                        className='w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      >
+                        {acc.code} · {acc.name}
+                      </button>
+                    ))
+                  )}
                 </div>
               )}
             </div>
@@ -209,14 +259,8 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
                 onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
                 className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between text-left'
               >
-                <span
-                  className={
-                    status
-                      ? 'text-gray-900 dark:text-gray-100'
-                      : 'text-gray-500 dark:text-gray-400'
-                  }
-                >
-                  {status || 'Select status'}
+                <span className='text-gray-900 dark:text-gray-100'>
+                  {selectedStatus?.label ?? 'Pending'}
                 </span>
                 <ChevronDown className='h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0' />
               </button>
@@ -224,21 +268,26 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
                 <div className='absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1'>
                   {EXPENSE_STATUSES.map(s => (
                     <button
-                      key={s}
+                      key={s.value}
                       type='button'
                       onClick={() => {
-                        setStatus(s);
+                        setStatus(s.value);
                         setStatusDropdownOpen(false);
                       }}
                       className='w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
                     >
-                      {s}
+                      {s.label}
                     </button>
                   ))}
                 </div>
               )}
             </div>
           </div>
+          {formError || saveError ? (
+            <p className='text-sm text-red-600 dark:text-red-400'>
+              {formError || saveError}
+            </p>
+          ) : null}
         </form>
 
         <div className='px-4 py-3 pb-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0 bg-white dark:bg-gray-800'>
@@ -254,7 +303,7 @@ const AddExpenseDrawer: React.FC<AddExpenseDrawerProps> = ({
             type='submit'
             form={EXPENSE_FORM_ID}
             disabled={isSaving}
-            className='px-4 py-2.5 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl transition-colors disabled:opacity-50'
+            className='px-4 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-800 rounded-xl transition-colors disabled:opacity-50'
           >
             {isSaving ? 'Saving…' : 'Add expense'}
           </button>

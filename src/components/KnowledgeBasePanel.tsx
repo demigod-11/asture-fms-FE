@@ -10,61 +10,6 @@ export interface KnowledgeBaseArticle {
   href?: string;
 }
 
-/** Placeholder articles; replace with API or CMS when ready. */
-const DEFAULT_ARTICLES: KnowledgeBaseArticle[] = [
-  {
-    id: '1',
-    title: 'Getting started with Asture FMS',
-    snippet:
-      'Set up your business, invite team members, and connect your accounts.',
-    category: 'Getting started',
-  },
-  {
-    id: '2',
-    title: 'Creating and sending invoices',
-    snippet: 'Create invoices, set payment terms, and send to customers.',
-    category: 'Sales',
-  },
-  {
-    id: '3',
-    title: 'Managing customers',
-    snippet:
-      'Add customers, track contact details, and view transaction history.',
-    category: 'Sales',
-  },
-  {
-    id: '4',
-    title: 'Recording bills and expenses',
-    snippet: 'Enter bills, track expenses, and manage vendor payments.',
-    category: 'Purchase',
-  },
-  {
-    id: '5',
-    title: 'Understanding reports',
-    snippet: 'Profit & loss, balance sheet, and aging reports explained.',
-    category: 'Reports',
-  },
-  {
-    id: '6',
-    title: 'Chart of accounts',
-    snippet:
-      'Configure accounts, categories, and how transactions are classified.',
-    category: 'Settings',
-  },
-  {
-    id: '7',
-    title: 'User roles and permissions',
-    snippet: 'Invite users, assign roles, and control what they can access.',
-    category: 'Settings',
-  },
-  {
-    id: '8',
-    title: 'Two-factor sign-in (OTP)',
-    snippet: 'How sign-in with email and one-time code works.',
-    category: 'Account',
-  },
-];
-
 interface KnowledgeBasePanelProps {
   open: boolean;
   onClose: () => void;
@@ -74,7 +19,7 @@ interface KnowledgeBasePanelProps {
 const KnowledgeBasePanel: React.FC<KnowledgeBasePanelProps> = ({
   open,
   onClose,
-  articles = DEFAULT_ARTICLES,
+  articles = [],
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -138,7 +83,9 @@ const KnowledgeBasePanel: React.FC<KnowledgeBasePanelProps> = ({
         <div className='flex-1 overflow-y-auto min-h-0'>
           {filtered.length === 0 ? (
             <div className='p-6 text-center text-sm text-gray-500 dark:text-gray-400'>
-              No articles match your search.
+              {articles.length === 0
+                ? 'Knowledge base coming soon.'
+                : 'No articles match your search.'}
             </div>
           ) : (
             <ul

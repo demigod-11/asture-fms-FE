@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import ListPageToolbar from '@/components/ListPageToolbar';
+import ListPage from '@/components/ListPage';
+import StatusBadge from '@/components/StatusBadge';
+import RowActions from '@/components/RowActions';
 import ModuleTabs from '@/components/ModuleTabs';
-import SelectableDataTable from '@/components/SelectableDataTable';
 import InviteTeamMemberDrawer from '@/components/InviteTeamMemberDrawer';
 import EditRoleDrawer, {
   type ApiPermission,
@@ -49,22 +50,6 @@ export interface Invitation {
   sentAt: string;
   expiresAt?: string;
 }
-
-const STATUS_LABELS: Record<InvitationStatus, string> = {
-  pending: 'Pending',
-  accepted: 'Accepted',
-  declined: 'Declined',
-  expired: 'Expired',
-  cancelled: 'Cancelled',
-};
-
-const statusClass: Record<InvitationStatus, string> = {
-  pending: 'bg-amber-100 text-amber-800',
-  accepted: 'bg-green-100 text-green-800',
-  declined: 'bg-red-100 text-red-800',
-  expired: 'bg-gray-100 text-gray-600',
-  cancelled: 'bg-gray-100 text-gray-500',
-};
 
 type Tab = 'members' | 'invitations' | 'roles';
 
@@ -483,13 +468,7 @@ const UsersPage: React.FC = () => {
       {
         id: 'status',
         header: 'Status',
-        cell: r => (
-          <span
-            className={`inline-flex items-center rounded-lg px-2.5 py-0.5 text-xs font-medium ${statusClass[r.status]}`}
-          >
-            {STATUS_LABELS[r.status]}
-          </span>
-        ),
+        cell: r => <StatusBadge status={r.status} family='invitation' />,
         sortable: true,
       },
       { id: 'sentAt', header: 'Sent', cell: r => r.sentAt, sortable: true },
@@ -542,57 +521,74 @@ const UsersPage: React.FC = () => {
         ariaLabel='Users sections'
       />
 
-      <ListPageToolbar
-        searchValue={search}
-        onSearchChange={setSearch}
-        searchPlaceholder='Search by name or email...'
-        filterLabel='All'
-        primaryLabel={canManageTeam ? 'Invite team member' : undefined}
-        onPrimaryClick={canManageTeam ? () => setInviteOpen(true) : undefined}
-      />
-
       {tab === 'members' && (
-        <SelectableDataTable<TeamMember>
+        <ListPage<TeamMember>
+          search={{
+            value: search,
+            onChange: setSearch,
+            placeholder: 'Search by name or email...',
+          }}
+          primaryAction={
+            canManageTeam
+              ? {
+                  label: 'Invite team member',
+                  onClick: () => setInviteOpen(true),
+                }
+              : undefined
+          }
           data={filteredMembers}
           getRowId={r => r.id}
           columns={memberColumns}
           selectionLabel='team members'
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
+          sort={{ key: sortKey, dir: sortDir, onSort: handleSort }}
           tableMinWidth='640px'
           emptyMessage='No team members found.'
         />
       )}
 
       {tab === 'invitations' && (
-        <SelectableDataTable<Invitation>
+        <ListPage<Invitation>
+          search={{
+            value: search,
+            onChange: setSearch,
+            placeholder: 'Search by email...',
+          }}
+          primaryAction={
+            canManageTeam
+              ? {
+                  label: 'Invite team member',
+                  onClick: () => setInviteOpen(true),
+                }
+              : undefined
+          }
           data={invitationsWithExpired}
           getRowId={r => r.id}
           columns={invitationColumns}
           selectionLabel='invitations'
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          renderRowActions={inv =>
+          sort={{ key: sortKey, dir: sortDir, onSort: handleSort }}
+          rowActions={inv =>
             inv.status === 'pending' ? (
-              <div className='flex items-center gap-1'>
-                <button
-                  type='button'
-                  onClick={() => handleResend(inv.id)}
-                  className='text-xs font-medium text-[#073E60] hover:underline'
-                >
-                  Resend
-                </button>
-                <span className='text-gray-300'>|</span>
-                <button
-                  type='button'
-                  onClick={() => handleCancel(inv.id)}
-                  className='text-xs font-medium text-red-600 hover:underline'
-                >
-                  Cancel
-                </button>
-              </div>
+              <RowActions
+                extra={
+                  <div className='flex items-center gap-1'>
+                    <button
+                      type='button'
+                      onClick={() => handleResend(inv.id)}
+                      className='text-xs font-medium text-primary-600 hover:underline'
+                    >
+                      Resend
+                    </button>
+                    <span className='text-gray-300'>|</span>
+                    <button
+                      type='button'
+                      onClick={() => handleCancel(inv.id)}
+                      className='text-xs font-medium text-red-600 hover:underline'
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                }
+              />
             ) : null
           }
           tableMinWidth='640px'
@@ -601,24 +597,31 @@ const UsersPage: React.FC = () => {
       )}
 
       {tab === 'roles' && (
-        <SelectableDataTable<RoleRow>
+        <ListPage<RoleRow>
+          search={{
+            value: search,
+            onChange: setSearch,
+            placeholder: 'Search roles...',
+          }}
           data={sortedRolesList}
           getRowId={r => r.id}
           columns={roleColumns}
           selectionLabel='roles'
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={handleSort}
-          renderRowActions={
+          sort={{ key: sortKey, dir: sortDir, onSort: handleSort }}
+          rowActions={
             canManageTeam
               ? role => (
-                  <button
-                    type='button'
-                    onClick={() => openEditRole(role)}
-                    className='text-sm font-medium text-[#073E60] dark:text-primary-400 hover:underline dark:hover:text-primary-300'
-                  >
-                    Edit permissions
-                  </button>
+                  <RowActions
+                    extra={
+                      <button
+                        type='button'
+                        onClick={() => openEditRole(role)}
+                        className='text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline dark:hover:text-primary-300'
+                      >
+                        Edit permissions
+                      </button>
+                    }
+                  />
                 )
               : undefined
           }

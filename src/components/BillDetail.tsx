@@ -165,7 +165,8 @@ const BillDetail: React.FC = () => {
   const organisationEmail = '';
   const organisationAddress = '';
 
-  const vendorId = bill?.vendor_id;
+  const vendorName = bill?.vendor_name?.trim() || null;
+  const vendorEmail = bill?.vendor_email?.trim() || null;
 
   const emailSubject = bill
     ? `Bill ${bill.bill_number || bill.id} from ${organisationName}`
@@ -286,7 +287,7 @@ const BillDetail: React.FC = () => {
               </label>
               <div className='flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100'>
                 <Mail className='h-4 w-4 text-gray-400' />
-                <span>{vendorId ?? 'Vendor'}</span>
+                <span>{vendorEmail || vendorName || 'Vendor'}</span>
               </div>
             </div>
             <div>
@@ -372,14 +373,14 @@ const BillDetail: React.FC = () => {
                   Notes
                 </p>
                 <p>{bill.notes || 'No additional notes.'}</p>
-                {vendorId && (
+                {(vendorName || vendorEmail) && (
                   <p className='text-sm'>
                     Vendor:{' '}
                     <Link
                       to='/purchase/vendor'
                       className='text-[#073E60] dark:text-primary-400 hover:underline'
                     >
-                      {vendorId}
+                      {vendorName || vendorEmail}
                     </Link>
                   </p>
                 )}

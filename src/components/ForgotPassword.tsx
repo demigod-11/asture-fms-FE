@@ -99,7 +99,7 @@ const ForgotPassword: React.FC = () => {
                 className={`input-field pl-10 py-3.5 rounded-xl ${
                   error ? '!border-error-300' : ''
                 }`}
-                placeholder='hello@teddyed.com'
+                placeholder='hello@example.com'
               />
             </div>
             {error && <FieldError message={error} />}

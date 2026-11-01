@@ -2,9 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useProfile } from '@/contexts/ProfileContext';
-import SelectableDataTable from '@/components/SelectableDataTable';
-import ListPageToolbar from '@/components/ListPageToolbar';
-import PaginationFooter from '@/components/PaginationFooter';
+import ListPage from '@/components/ListPage';
+import StatusBadge from '@/components/StatusBadge';
+import RowActions from '@/components/RowActions';
 import AddExpenseDrawer, {
   type AddExpensePayload,
 } from '@/components/AddExpenseDrawer';
@@ -12,14 +12,17 @@ import NoOrganisationNotice from '@/components/NoOrganisationNotice';
 import {
   listExpenses,
   createExpense,
+  updateExpense,
   deleteExpense,
   type ExpenseResponse,
 } from '@/services/expensesApi';
-import DateFilterDropdown, {
+import {
   getDefaultDateFilterState,
   type DateFilterState,
 } from '@/components/reports/DateFilterDropdown';
 import { getDateRangeForPreset } from '@/lib/dateFilters';
+import { displayPublicId } from '@/utils/displayId';
+import { getApiErrorMessage } from '@/utils/apiError';
 
 interface ExpenseRow {
   id: string;
@@ -32,7 +35,11 @@ interface ExpenseRow {
 }
 
 const getExpenseColumns = (formatCurrency: (n: number) => string) => [
-  { id: 'id', header: 'ID' as const, cell: (row: ExpenseRow) => row.publicId },
+  {
+    id: 'id',
+    header: 'ID' as const,
+    cell: (row: ExpenseRow) => row.publicId,
+  },
   {
     id: 'description',
     header: 'Description' as const,
@@ -53,17 +60,7 @@ const getExpenseColumns = (formatCurrency: (n: number) => string) => [
     id: 'status',
     header: 'Status' as const,
     cell: (row: ExpenseRow) => (
-      <span
-        className={`badge ${
-          row.status === 'paid'
-            ? 'badge-success'
-            : row.status === 'reimbursed'
-              ? 'badge-info'
-              : 'badge-warning'
-        }`}
-      >
-        {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
-      </span>
+      <StatusBadge status={row.status} family='expense' />
     ),
   },
 ];
@@ -76,7 +73,11 @@ const Expenses: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<ExpenseResponse | null>(
+    null
+  );
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [dateFilter, setDateFilter] = useState<DateFilterState>(
@@ -88,21 +89,21 @@ const Expenses: React.FC = () => {
     [formatCurrency]
   );
 
+  const { date_from, date_to } = getDateRangeForPreset(
+    dateFilter.preset,
+    dateFilter.customFrom,
+    dateFilter.customTo
+  );
+
   const { data, isLoading, error } = useQuery(
-    ['expenses', organisationId, page, dateFilter],
-    () => {
-      const { date_from, date_to } = getDateRangeForPreset(
-        dateFilter.preset,
-        dateFilter.customFrom,
-        dateFilter.customTo
-      );
-      return listExpenses(organisationId, {
+    ['expenses', organisationId, page, pageSize, date_from, date_to],
+    () =>
+      listExpenses(organisationId, {
         page,
-        page_size: 20,
+        page_size: pageSize,
         from_date: date_from,
         to_date: date_to,
-      });
-    },
+      }),
     { enabled: Boolean(organisationId) }
   );
 
@@ -111,8 +112,7 @@ const Expenses: React.FC = () => {
     () =>
       (data?.items ?? []).map((e: ExpenseResponse) => ({
         id: e.id,
-        publicId:
-          (e as ExpenseResponse & { public_id?: string }).public_id ?? e.id,
+        publicId: displayPublicId(e.public_id),
         description: e.description ?? '',
         category: e.coa_id ? 'Linked to account' : '—',
         amount: Number(e.amount ?? 0),
@@ -124,9 +124,21 @@ const Expenses: React.FC = () => {
     [data]
   );
 
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.trim().toLowerCase();
+    return rows.filter(
+      r =>
+        r.publicId.toLowerCase().includes(q) ||
+        r.description.toLowerCase().includes(q) ||
+        r.category.toLowerCase().includes(q) ||
+        r.status.toLowerCase().includes(q)
+    );
+  }, [rows, search]);
+
   const sortedData = useMemo(() => {
-    if (!sortKey) return rows;
-    return [...rows].sort((a, b) => {
+    if (!sortKey) return filteredRows;
+    return [...filteredRows].sort((a, b) => {
       const aVal =
         (a as unknown as Record<string, string | number>)[sortKey] ?? '';
       const bVal =
@@ -139,24 +151,39 @@ const Expenses: React.FC = () => {
             });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [rows, sortKey, sortDir]);
+  }, [filteredRows, sortKey, sortDir]);
+
+  const expenseBody = (payload: AddExpensePayload) => ({
+    description: payload.description,
+    amount: Number(payload.amount || '0'),
+    expense_date: payload.expense_date || null,
+    currency: 'NGN',
+    payment_status: payload.payment_status,
+    vendor_id: undefined,
+    coa_id: payload.coa_id || undefined,
+    reference: null,
+  });
 
   const createMutation = useMutation(
     (payload: AddExpensePayload) =>
-      createExpense(organisationId, {
-        description: payload.description,
-        amount: Number(payload.amount || '0'),
-        expense_date: payload.expense_date || null,
-        currency: 'NGN',
-        payment_status: payload.payment_status,
-        vendor_id: undefined,
-        coa_id: undefined,
-        reference: null,
-      }),
+      createExpense(organisationId, expenseBody(payload)),
     {
       onSuccess: () => {
         queryClient.invalidateQueries(['expenses', organisationId]);
         setAddExpenseOpen(false);
+        setEditingExpense(null);
+      },
+    }
+  );
+
+  const updateMutation = useMutation(
+    (payload: AddExpensePayload) =>
+      updateExpense(organisationId, editingExpense!.id, expenseBody(payload)),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['expenses', organisationId]);
+        setAddExpenseOpen(false);
+        setEditingExpense(null);
       },
     }
   );
@@ -180,85 +207,93 @@ const Expenses: React.FC = () => {
 
   return (
     <>
-      <div className='space-y-4'>
-        <ListPageToolbar
-          searchValue={search}
-          onSearchChange={setSearch}
-          filterLabel='All categories'
-          primaryLabel='New expense'
-          onPrimaryClick={() => setAddExpenseOpen(true)}
-          rightSlot={
-            <DateFilterDropdown
-              state={dateFilter}
-              onStateChange={setDateFilter}
-            />
-          }
-        />
-        {error ? (
-          <p className='text-sm text-red-600 dark:text-red-400'>
-            {error instanceof Error ? error.message : 'Failed to load expenses'}
-          </p>
-        ) : null}
-        <SelectableDataTable<ExpenseRow>
-          data={sortedData}
-          getRowId={row => row.id}
-          columns={columns}
-          selectionLabel='expenses'
-          tableMinWidth='640px'
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={(key, dir) => {
+      <ListPage<ExpenseRow>
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: 'Search expenses...',
+        }}
+        dateFilter={{ state: dateFilter, onChange: setDateFilter }}
+        primaryAction={{
+          label: 'New expense',
+          onClick: () => {
+            setEditingExpense(null);
+            setAddExpenseOpen(true);
+          },
+        }}
+        data={sortedData}
+        getRowId={row => row.id}
+        columns={columns}
+        selectionLabel='expenses'
+        tableMinWidth='640px'
+        sort={{
+          key: sortKey,
+          dir: sortDir,
+          onSort: (key, dir) => {
             setSortKey(key);
             setSortDir(dir);
-          }}
-          renderRowActions={row => (
-            <div className='flex items-center gap-1'>
-              <button
-                type='button'
-                onClick={() => {
-                  if (window.confirm(`Delete expense "${row.description}"?`)) {
-                    deleteMutation.mutate(row.id);
-                  }
-                }}
-                className='p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded'
-                aria-label='Delete expense'
-              >
-                <svg
-                  className='w-4 h-4'
-                  fill='none'
-                  stroke='currentColor'
-                  viewBox='0 0 24 24'
-                  aria-hidden
-                >
-                  <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
-                  />
-                </svg>
-              </button>
-            </div>
-          )}
-          footer={
-            <PaginationFooter
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-            />
-          }
-          isLoading={isLoading}
-          emptyMessage={isLoading ? 'Loading expenses…' : 'No expenses found.'}
-        />
-      </div>
+          },
+        }}
+        rowActions={row => (
+          <RowActions
+            onEdit={() => {
+              const match = (data?.items ?? []).find(
+                item => item.id === row.id
+              );
+              if (!match) return;
+              setEditingExpense(match);
+              setAddExpenseOpen(true);
+            }}
+            onDelete={() => deleteMutation.mutate(row.id)}
+            confirmMessage={`Delete expense "${row.description || row.publicId}"?`}
+            deleteLabel='Delete expense'
+          />
+        )}
+        pagination={{
+          page,
+          totalPages,
+          pageSize,
+          onPageChange: setPage,
+          onPageSizeChange: n => {
+            setPageSize(n);
+            setPage(1);
+          },
+        }}
+        isLoading={isLoading}
+        errorMessage={
+          error ? getApiErrorMessage(error, 'Failed to load expenses') : null
+        }
+        emptyMessage='No expenses found.'
+      />
       <AddExpenseDrawer
         open={addExpenseOpen}
-        onClose={() => setAddExpenseOpen(false)}
-        onSaved={payload => createMutation.mutate(payload)}
-        isSaving={createMutation.isLoading}
+        onClose={() => {
+          setAddExpenseOpen(false);
+          setEditingExpense(null);
+        }}
+        initial={
+          editingExpense
+            ? {
+                description: editingExpense.description ?? '',
+                amount: String(editingExpense.amount ?? ''),
+                expense_date: editingExpense.expense_date ?? '',
+                payment_status: editingExpense.payment_status ?? 'unpaid',
+                coa_id: editingExpense.coa_id ?? undefined,
+              }
+            : null
+        }
+        onSaved={payload =>
+          editingExpense
+            ? updateMutation.mutate(payload)
+            : createMutation.mutate(payload)
+        }
+        isSaving={createMutation.isLoading || updateMutation.isLoading}
         saveError={
-          createMutation.error instanceof Error
-            ? createMutation.error.message
+          createMutation.error || updateMutation.error
+            ? getApiErrorMessage(
+                createMutation.error || updateMutation.error,
+                'Failed to save expense'
+              )
             : undefined
         }
       />

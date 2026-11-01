@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import SelectableDataTable from '@/components/SelectableDataTable';
-import ListPageToolbar from '@/components/ListPageToolbar';
-import PaginationFooter from '@/components/PaginationFooter';
+import ListPage from '@/components/ListPage';
+import RowActions from '@/components/RowActions';
 import AddVendorDrawer, {
   type AddVendorPayload,
 } from '@/components/AddVendorDrawer';
@@ -15,6 +14,8 @@ import {
   deleteVendor,
   type VendorResponse,
 } from '@/services/vendorsApi';
+import { displayPublicId } from '@/utils/displayId';
+import { getApiErrorMessage } from '@/utils/apiError';
 
 interface VendorRow {
   id: string;
@@ -27,8 +28,8 @@ interface VendorRow {
 function vendorToRow(v: VendorResponse): VendorRow {
   return {
     id: v.id,
-    publicId: v.public_id,
-    name: v.name,
+    publicId: displayPublicId(v.public_id),
+    name: displayPublicId(v.name),
     email: v.email ?? '—',
     contact: v.phone ?? '—',
   };
@@ -56,6 +57,7 @@ const Vendors: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [addVendorOpen, setAddVendorOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<VendorRow | null>(null);
   const [sortKey, setSortKey] = useState<string>('');
@@ -66,11 +68,11 @@ const Vendors: React.FC = () => {
     isLoading,
     error,
   } = useQuery(
-    ['vendors', organisationId, page, search],
+    ['vendors', organisationId, page, pageSize, search],
     () =>
       listVendors(organisationId, {
         page,
-        page_size: 20,
+        page_size: pageSize,
         search: search || undefined,
       }),
     { enabled: Boolean(organisationId) }
@@ -153,92 +155,57 @@ const Vendors: React.FC = () => {
 
   return (
     <>
-      <div className='space-y-4'>
-        <ListPageToolbar
-          searchValue={search}
-          onSearchChange={setSearch}
-          filterLabel='All Types'
-          primaryLabel='New vendor'
-          onPrimaryClick={() => setAddVendorOpen(true)}
-        />
-        <SelectableDataTable<VendorRow>
-          data={sortedData}
-          getRowId={row => row.id}
-          columns={VENDOR_COLUMNS}
-          selectionLabel='vendors'
-          tableMinWidth='640px'
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={(key, dir) => {
+      <ListPage<VendorRow>
+        search={{
+          value: search,
+          onChange: v => {
+            setSearch(v);
+            setPage(1);
+          },
+        }}
+        primaryAction={{
+          label: 'New vendor',
+          onClick: () => setAddVendorOpen(true),
+        }}
+        data={sortedData}
+        getRowId={row => row.id}
+        columns={VENDOR_COLUMNS}
+        selectionLabel='vendors'
+        tableMinWidth='640px'
+        sort={{
+          key: sortKey,
+          dir: sortDir,
+          onSort: (key, dir) => {
             setSortKey(key);
             setSortDir(dir);
-          }}
-          renderRowActions={row => (
-            <div className='flex items-center gap-1'>
-              <button
-                type='button'
-                onClick={() => setEditingVendor(row)}
-                className='p-1.5 text-gray-400 hover:text-[#073E60] hover:bg-gray-100 dark:hover:bg-gray-700 rounded'
-                aria-label='Edit vendor'
-              >
-                <svg
-                  className='w-4 h-4'
-                  fill='none'
-                  stroke='currentColor'
-                  viewBox='0 0 24 24'
-                  aria-hidden
-                >
-                  <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'
-                  />
-                </svg>
-              </button>
-              <button
-                type='button'
-                onClick={() => {
-                  if (window.confirm(`Delete vendor "${row.name}"?`)) {
-                    deleteMutation.mutate(row.id);
-                  }
-                }}
-                className='p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded'
-                aria-label='Delete vendor'
-              >
-                <svg
-                  className='w-4 h-4'
-                  fill='none'
-                  stroke='currentColor'
-                  viewBox='0 0 24 24'
-                  aria-hidden
-                >
-                  <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
-                  />
-                </svg>
-              </button>
-            </div>
-          )}
-          onRowClick={row => setEditingVendor(row)}
-          footer={
-            <PaginationFooter
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-            />
-          }
-          emptyMessage={isLoading ? 'Loading…' : 'No vendors found.'}
-        />
-        {error ? (
-          <p className='text-sm text-red-600 dark:text-red-400'>
-            {error instanceof Error ? error.message : 'Failed to load vendors'}
-          </p>
-        ) : null}
-      </div>
+          },
+        }}
+        rowActions={row => (
+          <RowActions
+            onEdit={() => setEditingVendor(row)}
+            onDelete={() => deleteMutation.mutate(row.id)}
+            confirmMessage={`Delete vendor "${row.name}"?`}
+            editLabel='Edit vendor'
+            deleteLabel='Delete vendor'
+          />
+        )}
+        onRowClick={row => setEditingVendor(row)}
+        pagination={{
+          page,
+          totalPages,
+          pageSize,
+          onPageChange: setPage,
+          onPageSizeChange: n => {
+            setPageSize(n);
+            setPage(1);
+          },
+        }}
+        isLoading={isLoading}
+        errorMessage={
+          error ? getApiErrorMessage(error, 'Failed to load vendors') : null
+        }
+        emptyMessage='No vendors found.'
+      />
       <AddVendorDrawer
         open={addVendorOpen || Boolean(editingVendor)}
         onClose={() => {
@@ -248,7 +215,7 @@ const Vendors: React.FC = () => {
         initialVendor={
           editingVendor
             ? {
-                name: editingVendor.name,
+                name: editingVendor.name === '—' ? '' : editingVendor.name,
                 email: editingVendor.email === '—' ? '' : editingVendor.email,
                 phone:
                   editingVendor.contact === '—' ? '' : editingVendor.contact,
@@ -266,13 +233,9 @@ const Vendors: React.FC = () => {
         isSaving={createMutation.isLoading || updateMutation.isLoading}
         saveError={
           createMutation.error != null || updateMutation.error != null
-            ? String(
-                (createMutation.error as { message?: unknown } | null)
-                  ?.message ??
-                  (updateMutation.error as { message?: unknown } | null)
-                    ?.message ??
-                  createMutation.error ??
-                  updateMutation.error
+            ? getApiErrorMessage(
+                createMutation.error ?? updateMutation.error,
+                'Failed to save vendor'
               )
             : undefined
         }

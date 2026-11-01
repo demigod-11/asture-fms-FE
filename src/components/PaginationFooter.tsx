@@ -5,23 +5,30 @@ export interface PaginationFooterProps {
   totalPages: number;
   onPageChange: (page: number) => void;
   showPerPageSelect?: boolean;
-  /** Default selected value for per-page dropdown (e.g. 5, 7, 10, 25). */
-  defaultPerPage?: number;
+  /** Controlled page size. Required when showPerPageSelect is true. */
+  pageSize?: number;
+  /** Called when the user picks a new page size. Required when showPerPageSelect is true. */
+  onPageSizeChange?: (pageSize: number) => void;
 }
 
-const PER_PAGE_OPTIONS = [5, 7, 10, 25];
+const PER_PAGE_OPTIONS = [10, 20, 50];
+const DEFAULT_PAGE_SIZE = 20;
 
 const PaginationFooter: React.FC<PaginationFooterProps> = ({
   page,
   totalPages,
   onPageChange,
   showPerPageSelect = true,
-  defaultPerPage = 7,
+  pageSize = DEFAULT_PAGE_SIZE,
+  onPageSizeChange,
 }) => {
   const showEllipsis = totalPages > 4;
   const leftPages = [1, 2, 3].filter(n => n <= totalPages);
   const rightPages =
     totalPages > 4 ? [totalPages - 1, totalPages].filter(n => n > 3) : [];
+  const safePageSize = PER_PAGE_OPTIONS.includes(pageSize)
+    ? pageSize
+    : DEFAULT_PAGE_SIZE;
 
   return (
     <div className='flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-4'>
@@ -85,13 +92,12 @@ const PaginationFooter: React.FC<PaginationFooterProps> = ({
         >
           ›
         </button>
-        {showPerPageSelect && (
+        {showPerPageSelect && onPageSizeChange != null && (
           <select
             className='ml-3 py-2 pl-3 pr-8 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500/25 focus:border-primary-500'
             aria-label='Items per page'
-            defaultValue={
-              PER_PAGE_OPTIONS.includes(defaultPerPage) ? defaultPerPage : 7
-            }
+            value={safePageSize}
+            onChange={e => onPageSizeChange(Number(e.target.value))}
           >
             {PER_PAGE_OPTIONS.map(n => (
               <option key={n} value={n}>

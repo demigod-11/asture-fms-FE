@@ -10,26 +10,13 @@ import {
 import { listBankAccounts } from '@/services/bankAccountsApi';
 import { listCoas } from '@/services/coaApi';
 
-type IntegrationCategory =
-  | 'Payments'
-  | 'Accounting'
-  | 'Banking'
-  | 'CRM'
-  | 'Other';
-
-type IntegrationId =
-  | 'paystack'
-  | 'stripe'
-  | 'paypal'
-  | 'bank_transfer'
-  | 'quickbooks';
+type IntegrationId = 'paystack';
 
 type IntegrationDef = {
   id: IntegrationId;
   name: string;
-  category: IntegrationCategory;
+  category: 'Payments';
   description: string;
-  comingSoon?: boolean;
 };
 
 const INTEGRATIONS: IntegrationDef[] = [
@@ -39,41 +26,11 @@ const INTEGRATIONS: IntegrationDef[] = [
     category: 'Payments',
     description: 'Accept card and bank payments for invoices.',
   },
-  {
-    id: 'stripe',
-    name: 'Stripe',
-    category: 'Payments',
-    description: 'Accept card payments globally.',
-    comingSoon: true,
-  },
-  {
-    id: 'paypal',
-    name: 'PayPal',
-    category: 'Payments',
-    description: 'Accept PayPal payments for invoices.',
-    comingSoon: true,
-  },
-  {
-    id: 'bank_transfer',
-    name: 'Bank Transfer',
-    category: 'Payments',
-    description: 'Record offline transfers and reconcile payments.',
-    comingSoon: true,
-  },
-  {
-    id: 'quickbooks',
-    name: 'QuickBooks',
-    category: 'Accounting',
-    description: 'Sync transactions and accounting data.',
-    comingSoon: true,
-  },
 ];
 
 const IntegrationPage: React.FC = () => {
   const { profiles } = useProfile();
   const organisationId = profiles[0]?.organisation_id ?? '';
-  const [activeCategory, setActiveCategory] =
-    useState<IntegrationCategory>('Payments');
   const [activeIntegration, setActiveIntegration] =
     useState<IntegrationId | null>(null);
   const [query, setQuery] = useState('');
@@ -141,45 +98,20 @@ const IntegrationPage: React.FC = () => {
                 aria-label='Search integrations'
               />
             </div>
-
-            <div className='flex gap-2 overflow-x-auto'>
-              {(
-                ['Payments', 'Accounting', 'Banking', 'CRM', 'Other'] as const
-              ).map(c => (
-                <button
-                  key={c}
-                  type='button'
-                  onClick={() => setActiveCategory(c)}
-                  className={`px-3 py-2 rounded-xl text-sm whitespace-nowrap border ${
-                    activeCategory === c
-                      ? 'border-[#073E60] text-[#073E60] dark:border-primary-500 dark:text-primary-300 bg-white dark:bg-gray-800'
-                      : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
-            {filteredIntegrations(activeCategory, query).length === 0 ? (
+            {filteredIntegrations(query).length === 0 ? (
               <div className='col-span-full text-sm text-gray-500 dark:text-gray-400'>
                 No integrations match your search.
               </div>
             ) : (
-              filteredIntegrations(activeCategory, query).map(integration => (
+              filteredIntegrations(query).map(integration => (
                 <IntegrationCard
                   key={integration.id}
                   integration={integration}
-                  onConnect={() => {
-                    if (integration.comingSoon) return;
-                    setActiveIntegration(integration.id);
-                  }}
-                  onViewDetails={() => {
-                    if (integration.comingSoon) return;
-                    setActiveIntegration(integration.id);
-                  }}
+                  onConnect={() => setActiveIntegration(integration.id)}
+                  onViewDetails={() => setActiveIntegration(integration.id)}
                 />
               ))
             )}
@@ -347,13 +279,9 @@ const IntegrationPage: React.FC = () => {
   );
 };
 
-function filteredIntegrations(
-  category: IntegrationCategory,
-  query: string
-): IntegrationDef[] {
+function filteredIntegrations(query: string): IntegrationDef[] {
   const q = query.trim().toLowerCase();
   return INTEGRATIONS.filter(i => {
-    if (i.category !== category) return false;
     if (!q) return true;
     return (
       i.name.toLowerCase().includes(q) ||
@@ -371,7 +299,7 @@ function IntegrationCard({
   onConnect: () => void;
   onViewDetails: () => void;
 }) {
-  const disabled = integration.comingSoon === true;
+  const disabled = false;
   return (
     <div className='rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex flex-col'>
       <div className='flex items-start justify-between gap-3'>

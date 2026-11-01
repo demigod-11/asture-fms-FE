@@ -76,6 +76,44 @@ export function getDateRangeForPreset(
   };
 }
 
+/**
+ * Date range for report fiscal-period toolbars.
+ * Uses getDateRangeForPreset for custom (and unknown) presets.
+ */
+export function getDateRangeForFiscalPeriod(
+  period: string,
+  customFrom?: string,
+  customTo?: string
+): { date_from: string; date_to: string } {
+  if (period === 'custom') {
+    return getDateRangeForPreset('custom', customFrom, customTo);
+  }
+
+  const today = new Date();
+  const todayStr = toYMD(today);
+  const year = today.getFullYear();
+
+  if (period === 'this-year') {
+    return { date_from: `${year}-01-01`, date_to: todayStr };
+  }
+
+  if (period === 'last-year') {
+    const y = year - 1;
+    return { date_from: `${y}-01-01`, date_to: `${y}-12-31` };
+  }
+
+  if (period === 'last-quarter') {
+    const currentQuarter = Math.floor(today.getMonth() / 3);
+    const startMonth = currentQuarter === 0 ? 9 : (currentQuarter - 1) * 3;
+    const startYear = currentQuarter === 0 ? year - 1 : year;
+    const start = new Date(startYear, startMonth, 1);
+    const end = new Date(startYear, startMonth + 3, 0);
+    return { date_from: toYMD(start), date_to: toYMD(end) };
+  }
+
+  return getDateRangeForPreset('last-90');
+}
+
 /** Default preset for list pages */
 export const DEFAULT_LIST_DATE_PRESET: DateFilterPresetKey = 'last-90';
 

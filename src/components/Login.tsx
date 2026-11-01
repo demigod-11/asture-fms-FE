@@ -112,7 +112,7 @@ const Login: React.FC = () => {
                 className={`input-field pl-10 pr-3 py-3.5 rounded-xl ${
                   emailError ? '!border-error-300' : ''
                 }`}
-                placeholder='hello@teddyed.com'
+                placeholder='hello@example.com'
               />
             </div>
             {emailError && <FieldError message={emailError} />}

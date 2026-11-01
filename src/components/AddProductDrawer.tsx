@@ -108,6 +108,7 @@ const AddProductDrawer: React.FC<AddProductDrawerProps> = ({
         </div>
 
         <form
+          id='add-product-form'
           onSubmit={handleSubmit}
           className='flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4'
         >
@@ -239,9 +240,9 @@ const AddProductDrawer: React.FC<AddProductDrawerProps> = ({
           </button>
           <button
             type='submit'
-            onClick={handleSubmit}
+            form='add-product-form'
             disabled={isSaving}
-            className='px-4 py-2.5 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl transition-colors disabled:opacity-50'
+            className='px-4 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-800 rounded-xl transition-colors disabled:opacity-50'
           >
             {isSaving ? 'Saving…' : isEdit ? 'Save changes' : 'Add product'}
           </button>

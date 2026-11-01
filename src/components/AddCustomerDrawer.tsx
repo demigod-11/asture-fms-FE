@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronDown } from 'lucide-react';
+import { X } from 'lucide-react';
 
 export interface AddCustomerPayload {
   name: string;
@@ -18,7 +18,7 @@ interface AddCustomerDrawerProps {
   saveError?: string | undefined;
 }
 
-const CUSTOMER_TYPES = ['Individual', 'Business', 'Other'];
+const CUSTOMER_FORM_ID = 'add-customer-form';
 
 const AddCustomerDrawer: React.FC<AddCustomerDrawerProps> = ({
   open,
@@ -28,41 +28,31 @@ const AddCustomerDrawer: React.FC<AddCustomerDrawerProps> = ({
   isSaving = false,
   saveError,
 }) => {
-  const [customerType, setCustomerType] = useState('');
   const [fullName, setFullName] = useState('');
-  const [classLevel, setClassLevel] = useState('');
-  const [guardianName, setGuardianName] = useState('');
-  const [guardianEmail, setGuardianEmail] = useState('');
+  const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [address, setAddress] = useState('');
-  const [description, setDescription] = useState('');
-  const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     if (initialCustomer) {
       setFullName(initialCustomer.name ?? '');
-      setGuardianEmail(initialCustomer.email ?? '');
+      setEmail(initialCustomer.email ?? '');
       setPhoneNumber(initialCustomer.phone ?? '');
       setAddress(initialCustomer.billing_address ?? '');
       return;
     }
-    setCustomerType('');
     setFullName('');
-    setClassLevel('');
-    setGuardianName('');
-    setGuardianEmail('');
+    setEmail('');
     setPhoneNumber('');
     setAddress('');
-    setDescription('');
-    setTypeDropdownOpen(false);
   }, [open, initialCustomer]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSaved?.({
       name: fullName.trim(),
-      email: guardianEmail.trim(),
+      email: email.trim(),
       phone: phoneNumber.trim(),
       billing_address: address.trim() || undefined,
     });
@@ -101,63 +91,19 @@ const AddCustomerDrawer: React.FC<AddCustomerDrawerProps> = ({
         </div>
 
         <form
+          id={CUSTOMER_FORM_ID}
           onSubmit={handleSubmit}
           className='flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4'
         >
           <div>
             <label
-              htmlFor='customer-type'
-              className='form-label text-gray-900 dark:text-gray-100'
-            >
-              Customer Type
-            </label>
-            <div className='relative'>
-              <button
-                type='button'
-                id='customer-type'
-                onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
-                className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between text-left'
-              >
-                <span
-                  className={
-                    customerType
-                      ? 'text-gray-900 dark:text-gray-100'
-                      : 'text-gray-500 dark:text-gray-400'
-                  }
-                >
-                  {customerType || 'Select type'}
-                </span>
-                <ChevronDown className='h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0' />
-              </button>
-              {typeDropdownOpen && (
-                <div className='absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg py-1'>
-                  {CUSTOMER_TYPES.map(type => (
-                    <button
-                      key={type}
-                      type='button'
-                      onClick={() => {
-                        setCustomerType(type);
-                        setTypeDropdownOpen(false);
-                      }}
-                      className='w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label
-              htmlFor='full-name'
+              htmlFor='customer-name'
               className='form-label text-gray-900 dark:text-gray-100'
             >
               Full Name <span className='text-error-500'>*</span>
             </label>
             <input
-              id='full-name'
+              id='customer-name'
               type='text'
               value={fullName}
               onChange={e => setFullName(e.target.value)}
@@ -167,109 +113,55 @@ const AddCustomerDrawer: React.FC<AddCustomerDrawerProps> = ({
             />
           </div>
 
-          <div>
-            <label
-              htmlFor='class-level'
-              className='form-label text-gray-900 dark:text-gray-100'
-            >
-              Segment
-            </label>
-            <input
-              id='class-level'
-              type='text'
-              value={classLevel}
-              onChange={e => setClassLevel(e.target.value)}
-              placeholder='e.g. Retail, Corporate'
-              className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor='guardian-name'
-              className='form-label text-gray-900 dark:text-gray-100'
-            >
-              Primary Contact <span className='text-error-500'>*</span>
-            </label>
-            <input
-              id='guardian-name'
-              type='text'
-              value={guardianName}
-              onChange={e => setGuardianName(e.target.value)}
-              placeholder='Mary Doe'
-              className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
-              required
-            />
-          </div>
-
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
             <div>
               <label
-                htmlFor='guardian-email'
+                htmlFor='customer-email'
                 className='form-label text-gray-900 dark:text-gray-100'
               >
-                Contact Email <span className='text-error-500'>*</span>
+                Contact Email
               </label>
               <input
-                id='guardian-email'
+                id='customer-email'
                 type='email'
-                value={guardianEmail}
-                onChange={e => setGuardianEmail(e.target.value)}
-                placeholder='Marydoe@example.com'
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder='name@example.com'
                 className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
-                required
               />
             </div>
             <div>
               <label
-                htmlFor='phone'
+                htmlFor='customer-phone'
                 className='form-label text-gray-900 dark:text-gray-100'
               >
-                Phone Number <span className='text-error-500'>*</span>
+                Phone Number
               </label>
               <input
-                id='phone'
+                id='customer-phone'
                 type='tel'
                 value={phoneNumber}
                 onChange={e => setPhoneNumber(e.target.value)}
                 placeholder='+234 801 234 5678'
                 className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
-                required
               />
             </div>
           </div>
 
           <div>
             <label
-              htmlFor='address'
+              htmlFor='customer-address'
               className='form-label text-gray-900 dark:text-gray-100'
             >
               Address
             </label>
             <input
-              id='address'
+              id='customer-address'
               type='text'
               value={address}
               onChange={e => setAddress(e.target.value)}
-              placeholder='Enter home address...'
+              placeholder='Enter billing address...'
               className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor='description'
-              className='form-label text-gray-900 dark:text-gray-100'
-            >
-              Description
-            </label>
-            <textarea
-              id='description'
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder='Enter account description...'
-              rows={3}
-              className='input-field pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 resize-none placeholder-gray-500 dark:placeholder-gray-400'
             />
           </div>
           {saveError && (
@@ -290,9 +182,9 @@ const AddCustomerDrawer: React.FC<AddCustomerDrawerProps> = ({
           </button>
           <button
             type='submit'
-            onClick={handleSubmit}
+            form={CUSTOMER_FORM_ID}
             disabled={isSaving}
-            className='px-4 py-2.5 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl transition-colors disabled:opacity-50'
+            className='px-4 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-800 rounded-xl transition-colors disabled:opacity-50'
           >
             {isSaving
               ? 'Saving…'

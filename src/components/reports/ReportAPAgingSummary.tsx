@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from 'react-query';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import ReportToolbar, { getDefaultReportToolbarState } from './ReportToolbar';
-import SelectableDataTable from '@/components/SelectableDataTable';
+import ListPage from '@/components/ListPage';
 import {
   getApAgingReport,
   type ApAgingReportResponse,
@@ -29,9 +28,7 @@ const NUM_TOTAL =
 const ReportAPAgingSummary: React.FC = () => {
   const { profiles } = useProfile();
   const { formatCurrency } = useCurrency();
-  const [toolbarState, setToolbarState] = useState(
-    getDefaultReportToolbarState
-  );
+  const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -62,9 +59,15 @@ const ReportAPAgingSummary: React.FC = () => {
     [report]
   );
 
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.trim().toLowerCase();
+    return rows.filter(r => r.vendor.toLowerCase().includes(q));
+  }, [rows, search]);
+
   const sortedData = useMemo(() => {
-    if (!sortKey) return rows;
-    return [...rows].sort((a, b) => {
+    if (!sortKey) return filteredRows;
+    return [...filteredRows].sort((a, b) => {
       const aVal = (a as unknown as Record<string, unknown>)[sortKey];
       const bVal = (b as unknown as Record<string, unknown>)[sortKey];
       const cmp =
@@ -75,7 +78,7 @@ const ReportAPAgingSummary: React.FC = () => {
             });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [rows, sortKey, sortDir]);
+  }, [filteredRows, sortKey, sortDir]);
 
   const columns: import('@/components/SelectableDataTable').SelectableDataTableColumn<APAgingRow>[] =
     [
@@ -85,7 +88,7 @@ const ReportAPAgingSummary: React.FC = () => {
         cell: r => (
           <Link
             to='/purchase/bills'
-            className='text-[#073E60] dark:text-primary-400 hover:underline'
+            className='text-primary-600 dark:text-primary-400 hover:underline'
           >
             {r.vendor}
           </Link>
@@ -186,36 +189,31 @@ const ReportAPAgingSummary: React.FC = () => {
 
   return (
     <div className='space-y-4'>
-      <ReportToolbar
-        state={toolbarState}
-        onStateChange={setToolbarState}
-        showDateFilter={false}
-        showComparative={false}
-        showRunReport={false}
-        showSearch
-      />
-
-      {error ? (
-        <p className='text-sm text-red-600 dark:text-red-400'>
-          {error instanceof Error
-            ? error.message
-            : 'Failed to load A/P aging summary'}
-        </p>
-      ) : null}
-      <SelectableDataTable<APAgingRow>
-        data={isLoading ? [] : sortedData}
+      <ListPage<APAgingRow>
+        search={{ value: search, onChange: setSearch }}
+        data={sortedData}
         getRowId={r => r.id}
         columns={columns}
         selectionLabel='A/P aging rows'
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onSort={(key, dir) => {
-          setSortKey(key);
-          setSortDir(dir);
+        sort={{
+          key: sortKey,
+          dir: sortDir,
+          onSort: (key, dir) => {
+            setSortKey(key);
+            setSortDir(dir);
+          },
         }}
         tableMinWidth='640px'
         footerCells={footerCells}
-        emptyMessage={isLoading ? 'Loading A/P aging…' : 'No A/P aging data.'}
+        isLoading={isLoading}
+        errorMessage={
+          error instanceof Error
+            ? error.message
+            : error
+              ? 'Failed to load A/P aging summary'
+              : null
+        }
+        emptyMessage='No A/P aging data.'
       />
     </div>
   );

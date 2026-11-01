@@ -3,25 +3,29 @@ import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useProfile } from '@/contexts/ProfileContext';
-import SelectableDataTable from '@/components/SelectableDataTable';
-import ListPageToolbar from '@/components/ListPageToolbar';
-import PaginationFooter from '@/components/PaginationFooter';
+import ListPage from '@/components/ListPage';
+import StatusBadge from '@/components/StatusBadge';
+import RowActions from '@/components/RowActions';
 import AddBillDrawer, { type AddBillPayload } from '@/components/AddBillDrawer';
 import NoOrganisationNotice from '@/components/NoOrganisationNotice';
 import {
   listBills,
   createBill,
+  updateBill,
   deleteBill,
   type BillResponse,
 } from '@/services/billsApi';
-import DateFilterDropdown, {
+import {
   getDefaultDateFilterState,
   type DateFilterState,
 } from '@/components/reports/DateFilterDropdown';
 import { getDateRangeForPreset } from '@/lib/dateFilters';
+import { displayPublicId } from '@/utils/displayId';
+import { getApiErrorMessage } from '@/utils/apiError';
 
 interface BillRow {
   id: string;
+  publicId: string;
   vendor: string;
   amount: number;
   dueDate: string;
@@ -35,9 +39,9 @@ const getBillColumns = (formatCurrency: (n: number) => string) => [
     cell: (row: BillRow) => (
       <Link
         to={`/purchase/bills/${row.id}`}
-        className='text-[#073E60] dark:text-primary-400 hover:underline'
+        className='text-primary-600 dark:text-primary-400 hover:underline'
       >
-        {row.id}
+        {row.publicId}
       </Link>
     ),
   },
@@ -59,19 +63,7 @@ const getBillColumns = (formatCurrency: (n: number) => string) => [
   {
     id: 'status',
     header: 'Status' as const,
-    cell: (row: BillRow) => (
-      <span
-        className={`badge ${
-          row.status === 'paid'
-            ? 'badge-success'
-            : row.status === 'overdue'
-              ? 'badge-error'
-              : 'badge-warning'
-        }`}
-      >
-        {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
-      </span>
-    ),
+    cell: (row: BillRow) => <StatusBadge status={row.status} family='bill' />,
   },
 ];
 
@@ -83,6 +75,7 @@ const Bills: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [addBillOpen, setAddBillOpen] = useState(false);
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -95,21 +88,22 @@ const Bills: React.FC = () => {
     [formatCurrency]
   );
 
+  const { date_from, date_to } = getDateRangeForPreset(
+    dateFilter.preset,
+    dateFilter.customFrom,
+    dateFilter.customTo
+  );
+
   const { data, isLoading, error } = useQuery(
-    ['bills', organisationId, page, dateFilter],
-    () => {
-      const { date_from, date_to } = getDateRangeForPreset(
-        dateFilter.preset,
-        dateFilter.customFrom,
-        dateFilter.customTo
-      );
-      return listBills(organisationId, {
+    ['bills', organisationId, page, pageSize, search, date_from, date_to],
+    () =>
+      listBills(organisationId, {
         page,
-        page_size: 20,
+        page_size: pageSize,
         from_date: date_from,
         to_date: date_to,
-      });
-    },
+        search: search || undefined,
+      }),
     { enabled: Boolean(organisationId) }
   );
 
@@ -119,7 +113,8 @@ const Bills: React.FC = () => {
     () =>
       (data?.items ?? []).map((b: BillResponse) => ({
         id: b.id,
-        vendor: b.vendor_id,
+        publicId: displayPublicId(b.public_id ?? b.bill_number),
+        vendor: displayPublicId(b.vendor_name),
         amount: Number(b.total ?? 0),
         dueDate: b.due_date ? new Date(b.due_date).toLocaleDateString() : '',
         status: b.status ?? 'draft',
@@ -127,17 +122,9 @@ const Bills: React.FC = () => {
     [data]
   );
 
-  const filteredRows = useMemo(() => {
-    if (!search.trim()) return rows;
-    const q = search.trim().toLowerCase();
-    return rows.filter(
-      r => r.id.toLowerCase().includes(q) || r.vendor.toLowerCase().includes(q)
-    );
-  }, [rows, search]);
-
   const sortedData = useMemo(() => {
-    if (!sortKey) return filteredRows;
-    return [...filteredRows].sort((a, b) => {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => {
       const aVal =
         (a as unknown as Record<string, string | number>)[sortKey] ?? '';
       const bVal =
@@ -150,7 +137,7 @@ const Bills: React.FC = () => {
             });
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [filteredRows, sortKey, sortDir]);
+  }, [rows, sortKey, sortDir]);
 
   const createMutation = useMutation(
     (payload: AddBillPayload) =>
@@ -160,7 +147,7 @@ const Bills: React.FC = () => {
         bill_date: payload.bill_date ?? null,
         due_date: payload.due_date ?? null,
         status: 'draft' as never,
-        currency: undefined,
+        currency: 'NGN',
         terms: payload.terms ?? null,
         notes: payload.notes ?? null,
         discount_total: '0' as never,
@@ -170,7 +157,7 @@ const Bills: React.FC = () => {
           const unit = Number.isFinite(total) ? total : 0;
           return {
             product_id: undefined,
-            coa_id: undefined,
+            coa_id: li.coa_id || undefined,
             description: li.description || null,
             quantity: quantity.toString(),
             unit_price: unit.toString(),
@@ -197,6 +184,16 @@ const Bills: React.FC = () => {
     }
   );
 
+  const markPaidMutation = useMutation(
+    (billId: string) =>
+      updateBill(organisationId, billId, { status: 'paid' } as never),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['bills', organisationId]);
+      },
+    }
+  );
+
   if (!organisationId) {
     return (
       <NoOrganisationNotice>
@@ -207,85 +204,74 @@ const Bills: React.FC = () => {
 
   return (
     <>
-      <div className='space-y-4'>
-        <ListPageToolbar
-          searchValue={search}
-          onSearchChange={setSearch}
-          filterLabel='All statuses'
-          primaryLabel='New bill'
-          onPrimaryClick={() => setAddBillOpen(true)}
-          rightSlot={
-            <DateFilterDropdown
-              state={dateFilter}
-              onStateChange={setDateFilter}
-            />
-          }
-        />
-        {error ? (
-          <p className='text-sm text-red-600 dark:text-red-400'>
-            {error instanceof Error ? error.message : 'Failed to load bills'}
-          </p>
-        ) : null}
-        <SelectableDataTable<BillRow>
-          data={sortedData}
-          getRowId={row => row.id}
-          columns={columns}
-          selectionLabel='bills'
-          tableMinWidth='640px'
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={(key, dir) => {
+      <ListPage<BillRow>
+        search={{
+          value: search,
+          onChange: v => {
+            setSearch(v);
+            setPage(1);
+          },
+        }}
+        dateFilter={{ state: dateFilter, onChange: setDateFilter }}
+        primaryAction={{
+          label: 'New bill',
+          onClick: () => setAddBillOpen(true),
+        }}
+        data={sortedData}
+        getRowId={row => row.id}
+        columns={columns}
+        selectionLabel='bills'
+        tableMinWidth='640px'
+        sort={{
+          key: sortKey,
+          dir: sortDir,
+          onSort: (key, dir) => {
             setSortKey(key);
             setSortDir(dir);
-          }}
-          renderRowActions={row => (
-            <div className='flex items-center gap-1'>
-              <button
-                type='button'
-                onClick={() => {
-                  if (window.confirm(`Delete bill "${row.id}"?`)) {
-                    deleteMutation.mutate(row.id);
-                  }
-                }}
-                className='p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded'
-                aria-label='Delete bill'
-              >
-                <svg
-                  className='w-4 h-4'
-                  fill='none'
-                  stroke='currentColor'
-                  viewBox='0 0 24 24'
-                  aria-hidden
+          },
+        }}
+        rowActions={row => (
+          <RowActions
+            extra={
+              row.status !== 'paid' ? (
+                <button
+                  type='button'
+                  className='px-2 py-1 text-xs text-primary-600 hover:underline'
+                  onClick={() => markPaidMutation.mutate(row.id)}
                 >
-                  <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
-                  />
-                </svg>
-              </button>
-            </div>
-          )}
-          footer={
-            <PaginationFooter
-              page={page}
-              totalPages={totalPages}
-              onPageChange={setPage}
-            />
-          }
-          isLoading={isLoading}
-          emptyMessage={isLoading ? 'Loading bills…' : 'No bills found.'}
-        />
-      </div>
+                  Mark paid
+                </button>
+              ) : null
+            }
+            onDelete={() => deleteMutation.mutate(row.id)}
+            confirmMessage={`Delete bill "${row.publicId}"?`}
+            deleteLabel='Delete bill'
+          />
+        )}
+        pagination={{
+          page,
+          totalPages,
+          pageSize,
+          onPageChange: setPage,
+          onPageSizeChange: n => {
+            setPageSize(n);
+            setPage(1);
+          },
+        }}
+        isLoading={isLoading}
+        errorMessage={
+          error ? getApiErrorMessage(error, 'Failed to load bills') : null
+        }
+        emptyMessage='No bills found.'
+      />
       <AddBillDrawer
         open={addBillOpen}
         onClose={() => setAddBillOpen(false)}
         onSaved={payload => createMutation.mutate(payload)}
         isSaving={createMutation.isLoading}
         saveError={
-          createMutation.error instanceof Error
-            ? createMutation.error.message
+          createMutation.error
+            ? getApiErrorMessage(createMutation.error, 'Failed to save bill')
             : undefined
         }
       />

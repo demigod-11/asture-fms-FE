@@ -7,19 +7,23 @@ export interface ListPageToolbarProps {
   searchValue: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder?: string;
-  /** If set, shows Filter button with this label (label hidden on small screens). Ignored when filterSlot is set. */
+  /** Real filter handler. Ignored when filterSlot is set. */
+  onFilter?: () => void;
+  /** Label for the Filter button when onFilter is set. */
   filterLabel?: string;
-  /** When set, renders in place of the filter button (e.g. "All actions" dropdown). Single control for filter. */
+  /** When set, renders in place of the filter button (e.g. "All actions" dropdown). */
   filterSlot?: React.ReactNode;
-  /** Optional node before Import/Export (e.g. "Last 90 days" button). */
+  /** Optional node before Import/Export (e.g. date filter). */
   rightSlot?: React.ReactNode;
   /** If set, primary is a Link; otherwise use onPrimaryClick. */
   primaryTo?: string;
   onPrimaryClick?: () => void;
   /** Optional node at start of toolbar row (e.g. account dropdown). */
   leftSlot?: React.ReactNode;
-  /** Primary CTA label; omit to hide (e.g. Bank transactions has no New button). */
+  /** Primary CTA label; omit to hide. */
   primaryLabel?: string;
+  /** When true, render Import/Export icon buttons. Default false. */
+  showImportExport?: boolean;
 }
 
 const ListPageToolbar: React.FC<ListPageToolbarProps> = ({
@@ -27,45 +31,51 @@ const ListPageToolbar: React.FC<ListPageToolbarProps> = ({
   onSearchChange,
   searchPlaceholder = 'Search...',
   filterLabel,
+  onFilter,
   filterSlot,
   rightSlot,
   primaryLabel,
   primaryTo,
   onPrimaryClick,
   leftSlot,
+  showImportExport = false,
 }) => {
   const showPrimary =
     primaryLabel != null && (primaryTo != null || onPrimaryClick != null);
+  const showFilterButton = filterSlot == null && onFilter != null;
   const actions = (
     <div className='flex flex-wrap items-center gap-2'>
       {filterSlot != null ? (
         filterSlot
-      ) : filterLabel != null ? (
+      ) : showFilterButton ? (
         <button
           type='button'
+          onClick={onFilter}
           className='btn-secondary inline-flex items-center gap-2'
         >
           <Filter className='h-4 w-4' />
-          <span className='hidden sm:inline'>{filterLabel}</span>
+          <span className='hidden sm:inline'>{filterLabel ?? 'Filter'}</span>
         </button>
       ) : null}
       {rightSlot}
-      <span className='inline-flex items-center gap-0.5 px-2 py-2 rounded-xl border border-gray-200/90 dark:border-gray-600 bg-white dark:bg-gray-700 shadow-input'>
-        <TooltipButton
-          title='Import'
-          ariaLabel='Import'
-          className='p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors'
-        >
-          <Upload className='h-4 w-4 text-gray-600 dark:text-gray-300' />
-        </TooltipButton>
-        <TooltipButton
-          title='Export'
-          ariaLabel='Export'
-          className='p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors'
-        >
-          <Download className='h-4 w-4 text-gray-600 dark:text-gray-300' />
-        </TooltipButton>
-      </span>
+      {showImportExport ? (
+        <span className='inline-flex items-center gap-0.5 px-2 py-2 rounded-xl border border-gray-200/90 dark:border-gray-600 bg-white dark:bg-gray-700 shadow-input'>
+          <TooltipButton
+            title='Import'
+            ariaLabel='Import'
+            className='p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors'
+          >
+            <Upload className='h-4 w-4 text-gray-600 dark:text-gray-300' />
+          </TooltipButton>
+          <TooltipButton
+            title='Export'
+            ariaLabel='Export'
+            className='p-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors'
+          >
+            <Download className='h-4 w-4 text-gray-600 dark:text-gray-300' />
+          </TooltipButton>
+        </span>
+      ) : null}
       {showPrimary &&
         (primaryTo ? (
           <Link

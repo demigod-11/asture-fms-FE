@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronDown } from 'lucide-react';
+import { X } from 'lucide-react';
 
 export interface AddVendorPayload {
   name: string;
@@ -18,9 +18,6 @@ interface AddVendorDrawerProps {
   saveError?: string | undefined;
 }
 
-const CATEGORY_OPTIONS = ['Stationery', 'Services', 'Equipment', 'Consulting'];
-const PAYMENT_TERMS_OPTIONS = ['Net 15', 'Net 30', 'Net 45', 'Due on receipt'];
-
 const AddVendorDrawer: React.FC<AddVendorDrawerProps> = ({
   open,
   onClose,
@@ -30,15 +27,9 @@ const AddVendorDrawer: React.FC<AddVendorDrawerProps> = ({
   saveError,
 }) => {
   const [fullName, setFullName] = useState('');
-  const [category, setCategory] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [paymentTerms, setPaymentTerms] = useState('');
-  const [taxVatNumber, setTaxVatNumber] = useState('');
   const [address, setAddress] = useState('');
-  const [description, setDescription] = useState('');
-  const [categoryOpen, setCategoryOpen] = useState(false);
-  const [paymentTermsOpen, setPaymentTermsOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -50,15 +41,9 @@ const AddVendorDrawer: React.FC<AddVendorDrawerProps> = ({
       return;
     }
     setFullName('');
-    setCategory('');
     setContactEmail('');
     setPhoneNumber('');
-    setPaymentTerms('');
-    setTaxVatNumber('');
     setAddress('');
-    setDescription('');
-    setCategoryOpen(false);
-    setPaymentTermsOpen(false);
   }, [open, initialVendor]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -104,6 +89,7 @@ const AddVendorDrawer: React.FC<AddVendorDrawerProps> = ({
         </div>
 
         <form
+          id='add-vendor-form'
           onSubmit={handleSubmit}
           className='flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 space-y-4'
         >
@@ -123,54 +109,6 @@ const AddVendorDrawer: React.FC<AddVendorDrawerProps> = ({
               className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
               required
             />
-          </div>
-
-          <div>
-            <label
-              htmlFor='vendor-category'
-              className='form-label text-gray-900 dark:text-gray-100'
-            >
-              Category <span className='text-error-500'>*</span>
-            </label>
-            <div className='relative'>
-              <button
-                type='button'
-                id='vendor-category'
-                onClick={() => {
-                  setCategoryOpen(!categoryOpen);
-                  setPaymentTermsOpen(false);
-                }}
-                className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between text-left'
-              >
-                <span
-                  className={
-                    category
-                      ? 'text-gray-900 dark:text-gray-100'
-                      : 'text-gray-500 dark:text-gray-400'
-                  }
-                >
-                  {category || 'Select category'}
-                </span>
-                <ChevronDown className='h-4 w-4 text-gray-400 dark:text-gray-500 shrink-0 absolute right-3 top-1/2 -translate-y-1/2' />
-              </button>
-              {categoryOpen && (
-                <div className='absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg py-1'>
-                  {CATEGORY_OPTIONS.map(opt => (
-                    <button
-                      key={opt}
-                      type='button'
-                      onClick={() => {
-                        setCategory(opt);
-                        setCategoryOpen(false);
-                      }}
-                      className='w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
@@ -210,73 +148,6 @@ const AddVendorDrawer: React.FC<AddVendorDrawerProps> = ({
             </div>
           </div>
 
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-            <div>
-              <label
-                htmlFor='vendor-payment-terms'
-                className='form-label text-gray-900 dark:text-gray-100'
-              >
-                Payment Terms <span className='text-error-500'>*</span>
-              </label>
-              <div className='relative'>
-                <button
-                  type='button'
-                  id='vendor-payment-terms'
-                  onClick={() => {
-                    setPaymentTermsOpen(!paymentTermsOpen);
-                    setCategoryOpen(false);
-                  }}
-                  className='input-field w-full pl-3 pr-10 py-3 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between text-left'
-                >
-                  <span
-                    className={
-                      paymentTerms
-                        ? 'text-gray-900 dark:text-gray-100'
-                        : 'text-gray-500 dark:text-gray-400'
-                    }
-                  >
-                    {paymentTerms || 'Net 30'}
-                  </span>
-                  <ChevronDown className='h-4 w-4 text-gray-400 shrink-0 absolute right-3 top-1/2 -translate-y-1/2' />
-                </button>
-                {paymentTermsOpen && (
-                  <div className='absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg py-1'>
-                    {PAYMENT_TERMS_OPTIONS.map(opt => (
-                      <button
-                        key={opt}
-                        type='button'
-                        onClick={() => {
-                          setPaymentTerms(opt);
-                          setPaymentTermsOpen(false);
-                        }}
-                        className='w-full px-3 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700'
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div>
-              <label
-                htmlFor='vendor-tax-vat'
-                className='form-label text-gray-900 dark:text-gray-100'
-              >
-                Tax/VAT Number <span className='text-error-500'>*</span>
-              </label>
-              <input
-                id='vendor-tax-vat'
-                type='text'
-                value={taxVatNumber}
-                onChange={e => setTaxVatNumber(e.target.value)}
-                placeholder='TIN12345678'
-                className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
-                required
-              />
-            </div>
-          </div>
-
           <div>
             <label
               htmlFor='vendor-address'
@@ -291,23 +162,6 @@ const AddVendorDrawer: React.FC<AddVendorDrawerProps> = ({
               onChange={e => setAddress(e.target.value)}
               placeholder='Enter home address...'
               className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400'
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor='vendor-description'
-              className='form-label text-gray-900 dark:text-gray-100'
-            >
-              Description
-            </label>
-            <textarea
-              id='vendor-description'
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder='Enter account description...'
-              rows={3}
-              className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 resize-none placeholder-gray-500 dark:placeholder-gray-400'
             />
           </div>
         </form>
@@ -326,17 +180,10 @@ const AddVendorDrawer: React.FC<AddVendorDrawerProps> = ({
             </p>
           )}
           <button
-            type='button'
+            type='submit'
+            form='add-vendor-form'
             disabled={isSaving}
-            onClick={() =>
-              onSaved?.({
-                name: fullName.trim(),
-                email: contactEmail.trim(),
-                phone: phoneNumber.trim(),
-                address: address.trim() || '',
-              })
-            }
-            className='px-4 py-2.5 text-sm font-medium text-white bg-[#073E60] hover:bg-[#052d47] rounded-xl transition-colors disabled:opacity-50'
+            className='px-4 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-800 rounded-xl transition-colors disabled:opacity-50'
           >
             {isSaving
               ? 'Saving…'

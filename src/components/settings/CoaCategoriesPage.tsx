@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import SelectableDataTable from '@/components/SelectableDataTable';
-import ListPageToolbar from '@/components/ListPageToolbar';
+import ListPage from '@/components/ListPage';
+import RowActions from '@/components/RowActions';
 import NoOrganisationNotice from '@/components/NoOrganisationNotice';
 import { useProfile } from '@/contexts/ProfileContext';
 import {
@@ -153,90 +153,44 @@ const CoaCategoriesPage: React.FC = () => {
         cell: r => String(r.displayOrder),
         sortable: true,
       },
-      {
-        id: 'actions',
-        header: 'Actions',
-        cell: r => (
-          <div className='flex items-center gap-1'>
-            <button
-              type='button'
-              onClick={() => {
-                const cat = flatList.find(
-                  (c: COACategoryResponse) => c.id === r.id
-                );
-                if (cat) setEditingCategory(cat);
-              }}
-              className='p-1.5 text-gray-400 hover:text-[#073E60] hover:bg-gray-100 dark:hover:bg-gray-700 rounded'
-              aria-label='Edit category'
-            >
-              <svg
-                className='w-4 h-4'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'
-                />
-              </svg>
-            </button>
-            {!r.isSystem && (
-              <button
-                type='button'
-                onClick={() => {
-                  if (window.confirm(`Delete category "${r.name}"?`)) {
-                    deleteMutation.mutate(r.id);
-                  }
-                }}
-                className='p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded'
-                aria-label='Delete category'
-              >
-                <svg
-                  className='w-4 h-4'
-                  fill='none'
-                  stroke='currentColor'
-                  viewBox='0 0 24 24'
-                >
-                  <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
-                  />
-                </svg>
-              </button>
-            )}
-          </div>
-        ),
-        sortable: false,
-      },
     ];
 
   return (
     <div className='space-y-4'>
-      <ListPageToolbar
-        searchValue={search}
-        onSearchChange={setSearch}
-        filterLabel='All'
-        primaryLabel='New category'
-        onPrimaryClick={() => {
-          setAddOpen(true);
-          setFormName('');
-          setFormParentId(null);
-          setFormDisplayOrder(0);
-          setSaveError(null);
+      <ListPage<CategoryRow>
+        search={{ value: search, onChange: setSearch }}
+        primaryAction={{
+          label: 'New category',
+          onClick: () => {
+            setAddOpen(true);
+            setFormName('');
+            setFormParentId(null);
+            setFormDisplayOrder(0);
+            setSaveError(null);
+          },
         }}
-      />
-      <SelectableDataTable<CategoryRow>
         data={rowData}
         getRowId={r => r.id}
         columns={columns}
         selectionLabel='categories'
         tableMinWidth='640px'
         emptyMessage='No categories found.'
+        rowActions={r => (
+          <RowActions
+            onEdit={() => {
+              const cat = flatList.find(
+                (c: COACategoryResponse) => c.id === r.id
+              );
+              if (cat) setEditingCategory(cat);
+            }}
+            onDelete={
+              r.isSystem ? undefined : () => deleteMutation.mutate(r.id)
+            }
+            confirmMessage={`Delete category "${r.name}"?`}
+            editLabel='Edit category'
+            deleteLabel='Delete category'
+          />
+        )}
       />
 
       {(addOpen || editingCategory) && (

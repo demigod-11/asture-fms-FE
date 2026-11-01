@@ -3,6 +3,7 @@ import { useQuery } from 'react-query';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import ReportToolbar, { getDefaultReportToolbarState } from './ReportToolbar';
+import { getDateRangeForFiscalPeriod } from '@/lib/dateFilters';
 import CollapsibleReportSection from './CollapsibleReportSection';
 import { getArApSummary, getBankBalancesSummary } from '@/services/reportsApi';
 
@@ -12,6 +13,11 @@ const ReportBalanceSheet: React.FC = () => {
   const organisationId = profiles[0]?.organisation_id ?? '';
   const [toolbarState, setToolbarState] = useState(
     getDefaultReportToolbarState
+  );
+  const { date_from, date_to } = getDateRangeForFiscalPeriod(
+    toolbarState.fiscalPeriod,
+    toolbarState.customFrom,
+    toolbarState.customTo
   );
 
   const { data: bankSummary, isLoading: bankLoading } = useQuery(
@@ -44,9 +50,13 @@ const ReportBalanceSheet: React.FC = () => {
       <ReportToolbar state={toolbarState} onStateChange={setToolbarState} />
 
       <div className='card'>
-        <h3 className='text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4'>
-          Balance sheet (computed from bank balances + AR/AP)
+        <h3 className='text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1'>
+          Balance snapshot
         </h3>
+        <p className='text-xs text-gray-500 dark:text-gray-400 mb-4'>
+          Period {date_from} to {date_to}. Bank balances + unpaid AR − unpaid
+          AP. This is a snapshot, not a full statement of financial position.
+        </p>
 
         {bankLoading && (
           <p className='text-sm text-gray-500 dark:text-gray-400'>Loading…</p>

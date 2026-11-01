@@ -3,6 +3,7 @@ import { useQuery } from 'react-query';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import ReportToolbar, { getDefaultReportToolbarState } from './ReportToolbar';
+import { getDateRangeForFiscalPeriod } from '@/lib/dateFilters';
 import CollapsibleReportSection from './CollapsibleReportSection';
 import {
   getExpensesByCategory,
@@ -18,65 +19,40 @@ const ReportProfitLoss: React.FC = () => {
     getDefaultReportToolbarState
   );
   const comparative = toolbarState.compareEnabled;
+  const { date_from, date_to } = getDateRangeForFiscalPeriod(
+    toolbarState.fiscalPeriod,
+    toolbarState.customFrom,
+    toolbarState.customTo
+  );
 
   const { data: snapshot, isLoading: snapshotLoading } = useQuery(
-    [
-      'reports',
-      'profit-loss',
-      organisationId,
-      toolbarState.customFrom,
-      toolbarState.customTo,
-    ],
+    ['reports', 'profit-loss', organisationId, date_from, date_to],
     () =>
       getProfitLossSnapshot(organisationId, {
-        from_date: toolbarState.customFrom,
-        to_date: toolbarState.customTo,
+        from_date: date_from,
+        to_date: date_to,
       }),
-    {
-      enabled: Boolean(
-        organisationId && toolbarState.customFrom && toolbarState.customTo
-      ),
-    }
+    { enabled: Boolean(organisationId && date_from && date_to) }
   );
 
   const { data: revenueBuckets, isLoading: revenueLoading } = useQuery(
-    [
-      'reports',
-      'revenue-by-category',
-      organisationId,
-      toolbarState.customFrom,
-      toolbarState.customTo,
-    ],
+    ['reports', 'revenue-by-category', organisationId, date_from, date_to],
     () =>
       getRevenueByCategory(organisationId, {
-        from_date: toolbarState.customFrom,
-        to_date: toolbarState.customTo,
+        from_date: date_from,
+        to_date: date_to,
       }),
-    {
-      enabled: Boolean(
-        organisationId && toolbarState.customFrom && toolbarState.customTo
-      ),
-    }
+    { enabled: Boolean(organisationId && date_from && date_to) }
   );
 
   const { data: expenseBuckets, isLoading: expenseLoading } = useQuery(
-    [
-      'reports',
-      'expenses-by-category',
-      organisationId,
-      toolbarState.customFrom,
-      toolbarState.customTo,
-    ],
+    ['reports', 'expenses-by-category', organisationId, date_from, date_to],
     () =>
       getExpensesByCategory(organisationId, {
-        from_date: toolbarState.customFrom,
-        to_date: toolbarState.customTo,
+        from_date: date_from,
+        to_date: date_to,
       }),
-    {
-      enabled: Boolean(
-        organisationId && toolbarState.customFrom && toolbarState.customTo
-      ),
-    }
+    { enabled: Boolean(organisationId && date_from && date_to) }
   );
 
   const fromLabel = snapshot?.from_date

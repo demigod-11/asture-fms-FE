@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQuery, useMutation } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
 import {
   X,
   ChevronDown,
@@ -9,7 +9,6 @@ import {
   Trash2,
   Calendar,
   Info,
-  ImagePlus,
 } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
 import { getOrganisation } from '@/services/authApi';
@@ -25,11 +24,11 @@ import {
 import { listCustomers, type CustomerResponse } from '@/services/customersApi';
 import { listProducts, type ProductResponse } from '@/services/productsApi';
 import { listCoas, type ChartOfAccountResponse } from '@/services/coaApi';
-
-const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+import { getApiErrorMessage } from '@/utils/apiError';
 
 const CreateInvoice: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const isEditMode = Boolean(invoiceId);
   const { formatCurrency, currencyCode } = useCurrency();
@@ -43,29 +42,6 @@ const CreateInvoice: React.FC = () => {
   );
 
   const companyLogoUrl = organisation?.logo_url ?? null;
-  const [uploadedLogoUrl, setUploadedLogoUrl] = useState<string | null>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
-
-  const displayLogoUrl = uploadedLogoUrl ?? companyLogoUrl;
-
-  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > MAX_LOGO_SIZE_BYTES) {
-      return; // TODO: optional toast "Max 5MB"
-    }
-    if (!file.type.startsWith('image/')) return;
-    if (uploadedLogoUrl) URL.revokeObjectURL(uploadedLogoUrl);
-    setUploadedLogoUrl(URL.createObjectURL(file));
-    e.target.value = '';
-  };
-
-  const removeUploadedLogo = () => {
-    if (uploadedLogoUrl) {
-      URL.revokeObjectURL(uploadedLogoUrl);
-      setUploadedLogoUrl(null);
-    }
-  };
 
   const [activeView, setActiveView] = useState<'edit' | 'pdf' | 'email'>(
     'edit'
@@ -240,9 +216,9 @@ const CreateInvoice: React.FC = () => {
             productId: li.product_id ?? null,
             accountId: li.coa_id ?? null,
             description: li.description ?? '',
-            qty: li.quantity ?? '',
-            unitPrice: li.unit_price ?? '',
-            tax: li.tax ?? '',
+            qty: String(li.quantity ?? ''),
+            unitPrice: String(li.unit_price ?? ''),
+            tax: String(li.tax ?? ''),
           }))
         : [
             {
@@ -256,7 +232,7 @@ const CreateInvoice: React.FC = () => {
             },
           ]
     );
-  }, [existingInvoice]);
+  }, [existingInvoice?.id]);
 
   useEffect(() => {
     if (!existingInvoice || !customersData?.items) return;
@@ -329,6 +305,13 @@ const CreateInvoice: React.FC = () => {
         isEditMode && invoiceId
           ? await updateMutation.mutateAsync({ invoiceId, body: payload })
           : await createMutation.mutateAsync(payload);
+      queryClient.setQueryData(['invoice', organisationId, saved.id], saved);
+      await Promise.all([
+        queryClient.invalidateQueries(['invoices']),
+        queryClient.invalidateQueries(['invoice']),
+        queryClient.invalidateQueries(['dashboard']),
+        queryClient.invalidateQueries(['reports']),
+      ]);
       if (status === 'sent') {
         await sendInvoiceEmail(
           organisationId,
@@ -337,8 +320,9 @@ const CreateInvoice: React.FC = () => {
         );
       }
       navigate(isEditMode ? `/sales/invoice/${saved.id}` : '/sales/invoice');
-    } catch {
-      // mutation error states already handled by react-query
+    } catch (error) {
+      // eslint-disable-next-line no-alert
+      alert(getApiErrorMessage(error, 'Could not save the invoice.'));
     }
   };
 
@@ -389,7 +373,13 @@ const CreateInvoice: React.FC = () => {
           <button
             key={view}
             type='button'
-            onClick={() => setActiveView(view)}
+            onClick={() => {
+              if (view === 'pdf') {
+                window.print();
+                return;
+              }
+              setActiveView(view);
+            }}
             className={`px-4 py-2 text-sm font-medium rounded-md capitalize transition-colors ${
               activeView === view
                 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
@@ -399,7 +389,7 @@ const CreateInvoice: React.FC = () => {
             {view === 'edit'
               ? 'Edit invoice'
               : view === 'pdf'
-                ? 'PDF view'
+                ? 'Print'
                 : 'Email view'}
           </button>
         ))}
@@ -779,40 +769,10 @@ const CreateInvoice: React.FC = () => {
             </div>
           </section>
 
-          {/* Payment */}
           <section className='card'>
-            <h3 className='form-label text-gray-900 dark:text-gray-200 mb-2'>
-              Payment option
-            </h3>
-            <a
-              href='#'
-              className='text-[#073E60] dark:text-primary-400 text-sm hover:underline'
-            >
-              www.teddygoacademy.com/pay
-            </a>
-            <div className='mt-2 text-sm text-gray-600 dark:text-gray-300'>
-              <p className='font-semibold text-gray-900 dark:text-gray-100'>
-                BANK TRANSFER
-              </p>
-              <p className='text-gray-700 dark:text-gray-200'>
-                Bank Name: XYZ Bank
-              </p>
-              <p className='text-gray-700 dark:text-gray-200'>
-                Account No: 98765432145678
-              </p>
-              <p className='text-gray-700 dark:text-gray-200'>
-                Account Name: {organisation?.name ?? 'Your business'}
-              </p>
-            </div>
-            <button
-              type='button'
-              className='text-[#073E60] dark:text-primary-400 text-sm font-medium hover:underline dark:hover:text-primary-300 mt-1'
-            >
-              Edit payment option &gt;
-            </button>
-            <div className='mt-4'>
+            <div>
               <label className='form-label text-gray-900 dark:text-gray-200'>
-                Payment Memo
+                Notes
               </label>
               <textarea
                 value={paymentMemo}
@@ -828,55 +788,16 @@ const CreateInvoice: React.FC = () => {
         {/* Right sidebar - Summary + Logo */}
         <div className='xl:w-80 shrink-0 space-y-4'>
           <div className='card border-2 border-dashed border-gray-200 dark:border-gray-500 flex flex-col items-center justify-center py-8 px-4 text-center min-h-[140px]'>
-            <input
-              ref={logoInputRef}
-              type='file'
-              accept='image/*'
-              className='hidden'
-              onChange={handleLogoFileChange}
-            />
-            {displayLogoUrl ? (
-              <div className='relative w-full flex flex-col items-center'>
-                <img
-                  src={displayLogoUrl}
-                  alt='Company logo'
-                  className='max-h-20 w-auto object-contain'
-                />
-                <div className='flex gap-2 mt-2'>
-                  <button
-                    type='button'
-                    onClick={() => logoInputRef.current?.click()}
-                    className='text-xs font-medium text-[#073E60] dark:text-primary-400 hover:underline'
-                  >
-                    {uploadedLogoUrl ? 'Change logo' : 'Upload your own'}
-                  </button>
-                  {uploadedLogoUrl && (
-                    <button
-                      type='button'
-                      onClick={removeUploadedLogo}
-                      className='text-xs font-medium text-gray-500 dark:text-gray-400 hover:underline'
-                    >
-                      Use company logo
-                    </button>
-                  )}
-                </div>
-              </div>
+            {companyLogoUrl ? (
+              <img
+                src={companyLogoUrl}
+                alt='Company logo'
+                className='max-h-20 w-auto object-contain'
+              />
             ) : (
-              <button
-                type='button'
-                onClick={() => logoInputRef.current?.click()}
-                className='w-full flex flex-col items-center justify-center text-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#073E60] dark:focus:ring-primary-500 rounded-lg'
-              >
-                <div className='w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-400 dark:text-gray-400 mb-2'>
-                  <ImagePlus className='w-6 h-6' />
-                </div>
-                <p className='text-sm font-medium text-gray-600 dark:text-gray-300'>
-                  Add a logo
-                </p>
-                <p className='text-xs text-gray-500 dark:text-gray-400 mt-0.5'>
-                  Up to 5MB.
-                </p>
-              </button>
+              <p className='text-sm text-gray-500 dark:text-gray-400'>
+                Company logo appears here once it is set in settings.
+              </p>
             )}
           </div>
           <div className='card'>

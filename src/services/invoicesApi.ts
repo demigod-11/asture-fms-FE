@@ -36,6 +36,8 @@ export interface InvoiceResponse {
   public_id: string;
   organisation_id: string;
   customer_id: string;
+  customer_name?: string | null;
+  customer_email?: string | null;
   invoice_number: string;
   issue_date: string;
   due_date: string;
@@ -114,6 +116,7 @@ export interface ListInvoicesParams {
   customer_id?: string | null;
   from_date?: string | null;
   to_date?: string | null;
+  search?: string | null;
 }
 
 export async function listInvoices(
@@ -128,6 +131,7 @@ export async function listInvoices(
       customer_id: params.customer_id ?? undefined,
       from_date: params.from_date ?? undefined,
       to_date: params.to_date ?? undefined,
+      search: params.search || undefined,
     },
     headers: { 'X-Organisation-Id': organisationId },
   });

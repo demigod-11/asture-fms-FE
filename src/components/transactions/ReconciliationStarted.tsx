@@ -4,12 +4,12 @@ import { ChevronRight, Printer, AlertCircle, Check, X } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useProfile } from '@/contexts/ProfileContext';
-import SelectableDataTable from '@/components/SelectableDataTable';
-import PaginationFooter from '@/components/PaginationFooter';
-import DateFilterDropdown, {
+import ListPage from '@/components/ListPage';
+import {
   getDefaultDateFilterState,
   type DateFilterState,
 } from '@/components/reports/DateFilterDropdown';
+import { getDateRangeForPreset } from '@/lib/dateFilters';
 import {
   getReconciliation,
   addReconciliationMatch,
@@ -62,6 +62,8 @@ const ReconciliationStarted: React.FC = () => {
     getDefaultDateFilterState()
   );
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -71,12 +73,20 @@ const ReconciliationStarted: React.FC = () => {
     { enabled: Boolean(organisationId && reconciliationId) }
   );
 
+  const { date_from, date_to } = getDateRangeForPreset(
+    dateFilter.preset,
+    dateFilter.customFrom,
+    dateFilter.customTo
+  );
+
   const { data: txnsData } = useQuery(
-    ['bank-transactions', organisationId, accountId],
+    ['bank-transactions', organisationId, accountId, date_from, date_to],
     () =>
       listBankTransactions(organisationId, {
         bank_account_id: accountId,
         page_size: 200,
+        from_date: date_from,
+        to_date: date_to,
       }),
     { enabled: Boolean(organisationId && accountId) }
   );
@@ -187,7 +197,22 @@ const ReconciliationStarted: React.FC = () => {
     );
   }, [recon?.matches]);
   const difference = statementEndingBalance - clearedTotal;
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / 10));
+
+  const searchedRows = useMemo(() => {
+    if (!search.trim()) return sortedRows;
+    const q = search.trim().toLowerCase();
+    return sortedRows.filter(
+      r =>
+        r.description.toLowerCase().includes(q) ||
+        r.refNo.toLowerCase().includes(q)
+    );
+  }, [sortedRows, search]);
+
+  const totalPages = Math.max(1, Math.ceil(searchedRows.length / pageSize));
+  const pagedRows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return searchedRows.slice(start, start + pageSize);
+  }, [searchedRows, page, pageSize]);
   const statementDate = recon?.statement_ending_date
     ? new Date(recon.statement_ending_date).toLocaleDateString(undefined, {
         year: 'numeric',
@@ -309,52 +334,62 @@ const ReconciliationStarted: React.FC = () => {
         </div>
       </div>
 
-      <div className='flex flex-wrap items-center gap-3'>
-        <DateFilterDropdown state={dateFilter} onStateChange={setDateFilter} />
-        <div className='flex rounded-lg border border-gray-200 dark:border-gray-600 p-0.5 bg-gray-50 dark:bg-gray-800'>
-          {(['all', 'payments', 'deposits'] as const).map(f => (
+      <ListPage<ReconcileRow>
+        search={{ value: search, onChange: setSearch }}
+        dateFilter={{ state: dateFilter, onChange: setDateFilter }}
+        filterSlot={
+          <div className='flex flex-wrap items-center gap-2'>
+            <div className='flex rounded-lg border border-gray-200 dark:border-gray-600 p-0.5 bg-gray-50 dark:bg-gray-800'>
+              {(['all', 'payments', 'deposits'] as const).map(f => (
+                <button
+                  key={f}
+                  type='button'
+                  onClick={() => {
+                    setFilter(f);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md capitalize ${
+                    filter === f
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                  }`}
+                >
+                  {f === 'all' ? 'All' : f}
+                </button>
+              ))}
+            </div>
             <button
-              key={f}
               type='button'
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md capitalize ${
-                filter === f
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
-              }`}
+              className='p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg print:hidden'
+              aria-label='Print'
+              onClick={() => window.print()}
             >
-              {f === 'all' ? 'All' : f}
+              <Printer className='h-5 w-5' />
             </button>
-          ))}
-        </div>
-        <button
-          type='button'
-          className='p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg print:hidden'
-          aria-label='Print'
-          onClick={() => window.print()}
-        >
-          <Printer className='h-5 w-5' />
-        </button>
-      </div>
-
-      <SelectableDataTable<ReconcileRow>
-        data={sortedRows}
+          </div>
+        }
+        data={pagedRows}
         getRowId={row => row.id}
         selectionLabel='reconciliation rows'
         tableMinWidth='700px'
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onSort={(key, dir) => {
-          setSortKey(key);
-          setSortDir(dir);
+        sort={{
+          key: sortKey,
+          dir: sortDir,
+          onSort: (key, dir) => {
+            setSortKey(key);
+            setSortDir(dir);
+          },
         }}
-        footer={
-          <PaginationFooter
-            page={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-          />
-        }
+        pagination={{
+          page,
+          totalPages,
+          pageSize,
+          onPageChange: setPage,
+          onPageSizeChange: n => {
+            setPageSize(n);
+            setPage(1);
+          },
+        }}
         columns={[
           { id: 'date', header: 'Date' as const, cell: row => row.date },
           {

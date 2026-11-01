@@ -5,6 +5,8 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useQuery } from 'react-query';
 import { listVendors, type VendorResponse } from '@/services/vendorsApi';
+import { listCoas, type ChartOfAccountResponse } from '@/services/coaApi';
+import { billFormSchema } from '@/lib/formSchemas';
 
 export interface AddBillPayload {
   vendor_id: string;
@@ -13,7 +15,7 @@ export interface AddBillPayload {
   due_date?: string | null;
   terms?: string | null;
   notes?: string | null;
-  line_items: { description: string; total: string }[];
+  line_items: { description: string; total: string; coa_id?: string }[];
 }
 
 interface AddBillDrawerProps {
@@ -28,6 +30,7 @@ interface LineItem {
   id: string;
   category: string;
   accountNumber: string;
+  coaId: string;
   description: string;
   total: string;
 }
@@ -56,9 +59,30 @@ const AddBillDrawer: React.FC<AddBillDrawerProps> = ({
   const [vendorOpen, setVendorOpen] = useState(false);
   const [paymentMemo, setPaymentMemo] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { id: '1', category: '', accountNumber: '', description: '', total: '' },
-    { id: '2', category: '', accountNumber: '', description: '', total: '' },
-    { id: '3', category: '', accountNumber: '', description: '', total: '' },
+    {
+      id: '1',
+      category: '',
+      accountNumber: '',
+      coaId: '',
+      description: '',
+      total: '',
+    },
+    {
+      id: '2',
+      category: '',
+      accountNumber: '',
+      coaId: '',
+      description: '',
+      total: '',
+    },
+    {
+      id: '3',
+      category: '',
+      accountNumber: '',
+      coaId: '',
+      description: '',
+      total: '',
+    },
   ]);
 
   const addLineItem = () => {
@@ -68,6 +92,7 @@ const AddBillDrawer: React.FC<AddBillDrawerProps> = ({
         id: String(Date.now()),
         category: '',
         accountNumber: '',
+        coaId: '',
         description: '',
         total: '',
       },
@@ -99,18 +124,39 @@ const AddBillDrawer: React.FC<AddBillDrawerProps> = ({
     { enabled: Boolean(organisationId && open) }
   );
 
+  const { data: coaData } = useQuery(
+    ['coa', 'bill-form', organisationId],
+    () =>
+      listCoas(organisationId, {
+        page: 1,
+        page_size: 100,
+        status: 'active',
+      }),
+    { enabled: Boolean(organisationId && open) }
+  );
+
+  const accounts: ChartOfAccountResponse[] = coaData?.items ?? [];
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!vendorId) {
-      // eslint-disable-next-line no-alert
-      alert('Please select a vendor.');
-      return;
-    }
     const compactLineItems = lineItems.filter(
       item => item.description || item.total
     );
+    const parsed = billFormSchema.safeParse({
+      vendor_id: vendorId ?? '',
+      line_items: compactLineItems.map(item => ({
+        description: item.description,
+        total: item.total,
+        coa_id: item.coaId || undefined,
+      })),
+    });
+    if (!parsed.success) {
+      // eslint-disable-next-line no-alert
+      alert(parsed.error.issues[0]?.message ?? 'Please check the bill form.');
+      return;
+    }
     onSaved?.({
-      vendor_id: vendorId,
+      vendor_id: parsed.data.vendor_id,
       bill_number: billNumber || null,
       bill_date: billDate || null,
       due_date: dueDate || null,
@@ -119,6 +165,7 @@ const AddBillDrawer: React.FC<AddBillDrawerProps> = ({
       line_items: compactLineItems.map(item => ({
         description: item.description,
         total: item.total,
+        coa_id: item.coaId || undefined,
       })),
     });
   };
@@ -271,9 +318,9 @@ const AddBillDrawer: React.FC<AddBillDrawerProps> = ({
                 id='bill-vendor-email'
                 type='text'
                 value={vendorEmails}
-                onChange={e => setVendorEmails(e.target.value)}
-                placeholder='Separate emails with comma'
-                className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600'
+                readOnly
+                placeholder='Filled from the selected vendor'
+                className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900'
               />
             </div>
           </div>
@@ -288,9 +335,10 @@ const AddBillDrawer: React.FC<AddBillDrawerProps> = ({
             <textarea
               id='bill-billing-address'
               value={billingAddress}
-              onChange={e => setBillingAddress(e.target.value)}
+              readOnly
               rows={2}
-              className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 resize-none'
+              placeholder='Filled from the selected vendor'
+              className='input-field w-full pl-3 py-3 rounded-xl border border-gray-200 dark:border-gray-600 resize-none bg-gray-50 dark:bg-gray-900'
             />
           </div>
 
@@ -427,28 +475,42 @@ const AddBillDrawer: React.FC<AddBillDrawerProps> = ({
                         </button>
                       </td>
                       <td className='py-2 px-2'>
-                        <input
-                          type='text'
-                          value={item.category}
-                          onChange={e =>
-                            updateLineItem(item.id, 'category', e.target.value)
-                          }
-                          placeholder='Select'
-                          className='input-field w-full min-w-[80px] py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm'
-                        />
+                        <select
+                          value={item.coaId}
+                          onChange={e => {
+                            const acc = accounts.find(
+                              a => a.id === e.target.value
+                            );
+                            setLineItems(prev =>
+                              prev.map(row =>
+                                row.id === item.id
+                                  ? {
+                                      ...row,
+                                      coaId: e.target.value,
+                                      category: acc?.name ?? '',
+                                      accountNumber: acc?.code ?? '',
+                                    }
+                                  : row
+                              )
+                            );
+                          }}
+                          className='input-field w-full min-w-[120px] py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm'
+                          aria-label='Category / account'
+                        >
+                          <option value=''>Select account</option>
+                          {accounts.map(acc => (
+                            <option key={acc.id} value={acc.id}>
+                              {acc.code} · {acc.name}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className='py-2 px-2'>
                         <input
                           type='text'
                           value={item.accountNumber}
-                          onChange={e =>
-                            updateLineItem(
-                              item.id,
-                              'accountNumber',
-                              e.target.value
-                            )
-                          }
-                          placeholder=''
+                          readOnly
+                          placeholder='Account'
                           className='input-field w-full min-w-[80px] py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm'
                         />
                       </td>

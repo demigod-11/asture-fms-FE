@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import { Pencil, Trash2, BarChart3 } from 'lucide-react';
-import ListPageToolbar from '@/components/ListPageToolbar';
-import SelectableDataTable from '@/components/SelectableDataTable';
-import PaginationFooter from '@/components/PaginationFooter';
+import { BarChart3 } from 'lucide-react';
+import ListPage from '@/components/ListPage';
+import StatusBadge from '@/components/StatusBadge';
+import RowActions from '@/components/RowActions';
 import NoOrganisationNotice from '@/components/NoOrganisationNotice';
 import AddChartOfAccountDrawer, {
   type AddChartOfAccountPayload,
@@ -30,8 +30,6 @@ interface ChartAccountRow {
   description: string;
   status: string;
 }
-
-const PAGE_SIZE = 20;
 
 function coaToRow(
   coa: ChartOfAccountResponse,
@@ -67,6 +65,7 @@ const ChartOfAccounts: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
   const [editingCoa, setEditingCoa] = useState<ChartOfAccountResponse | null>(
     null
@@ -80,11 +79,11 @@ const ChartOfAccounts: React.FC = () => {
     isLoading,
     error,
   } = useQuery(
-    ['coa', organisationId, page, search],
+    ['coa', organisationId, page, pageSize, search],
     () =>
       listCoas(organisationId, {
         page,
-        page_size: PAGE_SIZE,
+        page_size: pageSize,
         name: search || undefined,
         code: search || undefined,
       }),
@@ -196,17 +195,7 @@ const ChartOfAccounts: React.FC = () => {
       {
         id: 'status',
         header: 'Status',
-        cell: r => (
-          <span
-            className={
-              r.status === 'active'
-                ? 'badge badge-success'
-                : 'badge bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-            }
-          >
-            {r.status}
-          </span>
-        ),
+        cell: r => <StatusBadge status={r.status} family='coa' />,
         sortable: true,
       },
     ];
@@ -222,84 +211,78 @@ const ChartOfAccounts: React.FC = () => {
 
   return (
     <div className='space-y-4'>
-      <ListPageToolbar
-        searchValue={search}
-        onSearchChange={setSearch}
-        searchPlaceholder='Search'
-        filterLabel='All'
-        primaryLabel='New account'
-        onPrimaryClick={() => setAddDrawerOpen(true)}
-      />
-      {error ? (
-        <p className='text-sm text-red-600 dark:text-red-400'>
-          {error instanceof Error
-            ? error.message
-            : 'Failed to load chart of accounts'}
-        </p>
-      ) : null}
-      <SelectableDataTable<ChartAccountRow>
+      <ListPage<ChartAccountRow>
+        search={{
+          value: search,
+          onChange: v => {
+            setSearch(v);
+            setPage(1);
+          },
+          placeholder: 'Search',
+        }}
+        primaryAction={{
+          label: 'New account',
+          onClick: () => setAddDrawerOpen(true),
+        }}
         data={sortedData}
         getRowId={r => r.id}
         columns={columns}
         selectionLabel='accounts'
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onSort={(key, dir) => {
-          setSortKey(key);
-          setSortDir(dir);
+        sort={{
+          key: sortKey,
+          dir: sortDir,
+          onSort: (key, dir) => {
+            setSortKey(key);
+            setSortDir(dir);
+          },
         }}
-        renderRowActions={row => {
+        rowActions={row => {
           const coa = items.find(c => c.id === row.id);
           return (
-            <div className='flex items-center gap-1'>
-              <button
-                type='button'
-                onClick={() => coa && setEditingCoa(coa)}
-                className='p-1.5 text-gray-400 hover:text-[#073E60] hover:bg-gray-100 dark:hover:bg-gray-700 rounded'
-                aria-label='Edit account'
-              >
-                <Pencil className='h-4 w-4' />
-              </button>
-              <button
-                type='button'
-                onClick={() => setUsageCoaId(row.id)}
-                className='p-1.5 text-gray-400 hover:text-[#073E60] hover:bg-gray-100 dark:hover:bg-gray-700 rounded'
-                aria-label='View usage'
-              >
-                <BarChart3 className='h-4 w-4' />
-              </button>
-              {coa?.status === 'active' && (
+            <RowActions
+              onEdit={coa ? () => setEditingCoa(coa) : undefined}
+              onDelete={
+                coa?.status === 'active'
+                  ? () => deactivateMutation.mutate(row.id)
+                  : undefined
+              }
+              confirmMessage={`Deactivate account "${row.accountName}"?`}
+              editLabel='Edit account'
+              deleteLabel='Deactivate account'
+              extra={
                 <button
                   type='button'
-                  onClick={() => {
-                    if (
-                      window.confirm(`Deactivate account "${row.accountName}"?`)
-                    ) {
-                      deactivateMutation.mutate(row.id);
-                    }
-                  }}
-                  className='p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded'
-                  aria-label='Deactivate account'
+                  onClick={() => setUsageCoaId(row.id)}
+                  className='p-1.5 text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded'
+                  aria-label='View usage'
                 >
-                  <Trash2 className='h-4 w-4' />
+                  <BarChart3 className='h-4 w-4' />
                 </button>
-              )}
-            </div>
+              }
+            />
           );
         }}
         tableMinWidth='640px'
-        emptyMessage='No accounts found.'
-        footer={
-          <PaginationFooter
-            page={page}
-            totalPages={totalPages || 1}
-            onPageChange={setPage}
-          />
+        pagination={{
+          page,
+          totalPages,
+          pageSize,
+          onPageChange: setPage,
+          onPageSizeChange: n => {
+            setPageSize(n);
+            setPage(1);
+          },
+        }}
+        isLoading={isLoading}
+        errorMessage={
+          error instanceof Error
+            ? error.message
+            : error
+              ? 'Failed to load chart of accounts'
+              : null
         }
+        emptyMessage='No accounts found.'
       />
-      {isLoading && (
-        <p className='text-sm text-gray-500 dark:text-gray-400'>Loading…</p>
-      )}
       <AddChartOfAccountDrawer
         open={addDrawerOpen || Boolean(editingCoa)}
         onClose={() => {

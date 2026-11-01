@@ -167,6 +167,10 @@
     @apply bg-primary-100 text-primary-800;
   }
 
+  .badge-neutral {
+    @apply bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200;
+  }
+
   /* Table typography – unique ID column, same body across all modules (tags/badges excluded) */
   .table-cell-id {
     font-size: 0.875rem;

@@ -4,19 +4,26 @@
 import type { components } from '@/generated/api';
 import { apiClient } from './apiClient';
 
-type ExpenseListResponse = components['schemas']['ExpenseListResponse'];
-type ExpenseResponse = components['schemas']['ExpenseResponse'];
+type ExpenseListResponseGenerated =
+  components['schemas']['ExpenseListResponse'];
+type ExpenseResponseGenerated = components['schemas']['ExpenseResponse'];
 type ExpenseCreateRequest = components['schemas']['ExpenseCreateRequest'];
 type ExpenseUpdateRequest = components['schemas']['ExpenseUpdateRequest'];
 
+export type ExpenseResponse = ExpenseResponseGenerated & {
+  public_id?: string;
+};
+
+export type ExpenseListResponse = Omit<
+  ExpenseListResponseGenerated,
+  'items'
+> & {
+  items: ExpenseResponse[];
+};
+
 const EXPENSES = '/expenses';
 
-export type {
-  ExpenseResponse,
-  ExpenseListResponse,
-  ExpenseCreateRequest,
-  ExpenseUpdateRequest,
-};
+export type { ExpenseCreateRequest, ExpenseUpdateRequest };
 
 export interface ListExpensesParams {
   page?: number;

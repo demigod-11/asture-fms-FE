@@ -3,14 +3,7 @@ import { useQuery } from 'react-query';
 import { ChevronDown, Landmark } from 'lucide-react';
 import { listBankAccounts } from '@/services/bankAccountsApi';
 
-/** Fallback when API not used (e.g. BankReconciliation before org context). */
-export const BANK_ACCOUNTS_FALLBACK = [
-  { id: 'zenith', name: 'Zenith PLC' },
-  { id: 'uba', name: 'UBA' },
-  { id: 'gtb', name: 'GTBank' },
-];
-
-/** @deprecated Use list from API; kept for backwards compatibility. */
+export const BANK_ACCOUNTS_FALLBACK: { id: string; name: string }[] = [];
 export const BANK_ACCOUNTS = BANK_ACCOUNTS_FALLBACK;
 
 interface BankAccountDropdownProps {

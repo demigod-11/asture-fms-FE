@@ -43,7 +43,7 @@ interface ReportToolbarProps {
   onRunReport?: () => void;
   showDateFilter?: boolean;
   showComparative?: boolean;
-  /** Show Run report button. Default true. Set false for AR/AP aging. */
+  /** Show Run report button only when a handler is provided. */
   showRunReport?: boolean;
   /** Show search (icon + input) instead of date filters. For AR/AP aging. */
   showSearch?: boolean;
@@ -55,7 +55,7 @@ const ReportToolbar: React.FC<ReportToolbarProps> = ({
   onRunReport,
   showDateFilter = true,
   showComparative = true,
-  showRunReport = true,
+  showRunReport = false,
   showSearch = false,
 }) => {
   const update = (patch: Partial<ReportToolbarState>) => {
@@ -118,21 +118,22 @@ const ReportToolbar: React.FC<ReportToolbarProps> = ({
         </>
       )}
 
-      {showRunReport && (
+      {showRunReport && onRunReport ? (
         <button
           type='button'
           onClick={onRunReport}
-          className='px-4 py-2.5 text-sm font-medium rounded-xl bg-[#073E60] text-white hover:bg-[#052d47] transition-colors shrink-0'
+          className='px-4 py-2.5 text-sm font-medium rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors shrink-0'
         >
           Run report
         </button>
-      )}
+      ) : null}
 
       <div className='flex-1 min-w-0' aria-hidden />
 
       <TooltipButton
         title='Print'
         ariaLabel='Print'
+        onClick={() => window.print()}
         className='p-2.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors shrink-0'
       >
         <Printer className='h-5 w-5' />

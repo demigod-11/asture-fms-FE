@@ -181,7 +181,8 @@ const InvoiceDetail: React.FC = () => {
   const organisationEmail = '';
   const organisationAddress = '';
 
-  const customerId = invoice?.customer_id;
+  const customerName = invoice?.customer_name?.trim() || null;
+  const customerEmail = invoice?.customer_email?.trim() || null;
 
   const { data: emailPreview, isLoading: isEmailPreviewLoading } = useQuery(
     ['invoice-email-preview', organisationId, invoice?.id],
@@ -338,8 +339,10 @@ const InvoiceDetail: React.FC = () => {
               <div className='flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100'>
                 <Mail className='h-4 w-4 text-gray-400' />
                 <span>
-                  {/* Customer email is not projected yet; fall back to ID */}
-                  {customerId ?? 'Customer'}
+                  {emailPreview?.to ||
+                    customerEmail ||
+                    customerName ||
+                    'Customer'}
                 </span>
               </div>
             </div>
@@ -456,14 +459,14 @@ const InvoiceDetail: React.FC = () => {
                   Notes
                 </p>
                 <p>{invoice.notes || 'No additional notes.'}</p>
-                {customerId && (
+                {(customerName || customerEmail) && (
                   <p className='text-sm'>
                     Customer:{' '}
                     <Link
-                      to={`/sales/customers`}
+                      to='/sales/customers'
                       className='text-[#073E60] dark:text-primary-400 hover:underline'
                     >
-                      {customerId}
+                      {customerName || customerEmail}
                     </Link>
                   </p>
                 )}

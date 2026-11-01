@@ -72,7 +72,7 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
         <div className='flex-1 overflow-y-auto min-h-0 flex flex-col'>
           {notifications.length === 0 ? (
             <div className='p-6 text-center text-sm text-gray-500 dark:text-gray-400'>
-              No notifications yet.
+              Notifications coming soon.
             </div>
           ) : (
             <>
@@ -124,10 +124,10 @@ const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
               </ul>
               <div className='border-t border-gray-200 dark:border-gray-700 shrink-0'>
                 <PaginationFooter
+                  showPerPageSelect={false}
                   page={safePage}
                   totalPages={totalPages}
                   onPageChange={setPage}
-                  defaultPerPage={PER_PAGE}
                 />
               </div>
             </>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
-import ListPageWithPagination from '@/components/ListPageWithPagination';
+import ListPage from '@/components/ListPage';
+import RowActions from '@/components/RowActions';
 import { useProfile } from '@/contexts/ProfileContext';
 import NoOrganisationNotice from '@/components/NoOrganisationNotice';
 import {
@@ -27,8 +28,6 @@ function tagToRow(t: TagResponse): TagRow {
   };
 }
 
-const PAGE_SIZE = 20;
-
 const TagsPage: React.FC = () => {
   const { profiles } = useProfile();
   const organisationId = profiles[0]?.organisation_id ?? '';
@@ -36,6 +35,7 @@ const TagsPage: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [addOpen, setAddOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<TagRow | null>(null);
   const [sortKey, setSortKey] = useState<string>('');
@@ -50,11 +50,11 @@ const TagsPage: React.FC = () => {
     isLoading,
     error,
   } = useQuery(
-    ['tags', organisationId, page, search],
+    ['tags', organisationId, page, pageSize, search],
     () =>
       listTags(organisationId, {
         page,
-        page_size: PAGE_SIZE,
+        page_size: pageSize,
         code: search || undefined,
         name: search || undefined,
       }),
@@ -188,75 +188,51 @@ const TagsPage: React.FC = () => {
 
   return (
     <div className='space-y-4'>
-      <ListPageWithPagination<TagRow>
-        searchValue={search}
-        onSearchChange={setSearch}
-        filterLabel='All tags'
-        primaryLabel='New tag'
-        onPrimaryClick={() => setAddOpen(true)}
+      <ListPage<TagRow>
+        search={{
+          value: search,
+          onChange: v => {
+            setSearch(v);
+            setPage(1);
+          },
+        }}
+        primaryAction={{
+          label: 'New tag',
+          onClick: () => setAddOpen(true),
+        }}
         data={sortedData}
         getRowId={row => row.id}
         columns={columns}
         selectionLabel='tags'
         tableMinWidth='640px'
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onSort={(key, dir) => {
-          setSortKey(key);
-          setSortDir(dir);
+        sort={{
+          key: sortKey,
+          dir: sortDir,
+          onSort: (key, dir) => {
+            setSortKey(key);
+            setSortDir(dir);
+          },
         }}
-        renderRowActions={row => (
-          <div className='flex items-center gap-1'>
-            <button
-              type='button'
-              onClick={() => setEditingTag(row)}
-              className='p-1.5 text-gray-400 hover:text-[#073E60] hover:bg-gray-100 dark:hover:bg-gray-700 rounded'
-              aria-label='Edit tag'
-            >
-              <svg
-                className='w-4 h-4'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'
-                />
-              </svg>
-            </button>
-            <button
-              type='button'
-              onClick={() => {
-                if (window.confirm(`Delete tag "${row.name}"?`)) {
-                  deleteMutation.mutate(row.id);
-                }
-              }}
-              className='p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-700 rounded'
-              aria-label='Delete tag'
-            >
-              <svg
-                className='w-4 h-4'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
-                />
-              </svg>
-            </button>
-          </div>
+        rowActions={row => (
+          <RowActions
+            onEdit={() => setEditingTag(row)}
+            onDelete={() => deleteMutation.mutate(row.id)}
+            confirmMessage={`Delete tag "${row.name}"?`}
+            editLabel='Edit tag'
+            deleteLabel='Delete tag'
+          />
         )}
         onRowClick={row => setEditingTag(row)}
-        page={page}
-        totalPages={totalPages}
-        onPageChange={setPage}
+        pagination={{
+          page,
+          totalPages,
+          pageSize,
+          onPageChange: setPage,
+          onPageSizeChange: n => {
+            setPageSize(n);
+            setPage(1);
+          },
+        }}
         isLoading={isLoading}
         errorMessage={
           error instanceof Error

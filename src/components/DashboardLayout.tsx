@@ -11,9 +11,6 @@ import {
   Cog,
   ChevronDown,
   ChevronUp,
-  Search,
-  Bell,
-  HelpCircle,
   LogOut,
   Menu,
   X,
@@ -27,11 +24,6 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useCurrency } from '@/contexts/CurrencyContext';
-import NotificationsPanel, {
-  type NotificationItem,
-} from '@/components/NotificationsPanel';
-import KnowledgeBasePanel from '@/components/KnowledgeBasePanel';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -238,79 +230,6 @@ const NavContent: React.FC<{
   );
 };
 
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: '1',
-    title: 'Invoice paid',
-    body: 'INV-2023-001 was paid by Michael Brown.',
-    read: false,
-    createdAt: '2 min ago',
-  },
-  {
-    id: '2',
-    title: 'New customer',
-    body: 'Jane Smith was added to your customers.',
-    read: false,
-    createdAt: '1 hour ago',
-  },
-  {
-    id: '3',
-    title: 'Bill overdue',
-    body: 'Bill #B-104 is overdue. Please follow up.',
-    read: true,
-    createdAt: 'Yesterday',
-  },
-  {
-    id: '4',
-    title: 'Report ready',
-    body: 'Your Profit & Loss report for Q1 is ready.',
-    read: true,
-    createdAt: 'Mar 15',
-  },
-  {
-    id: '5',
-    title: 'Payment received',
-    body: '__CUR_45000__ received for INV-2023-002 from Chidi Okeke.',
-    read: false,
-    createdAt: '2 hours ago',
-  },
-  {
-    id: '6',
-    title: 'Expense approved',
-    body: 'Expense #EXP-089 has been approved for reimbursement.',
-    read: true,
-    createdAt: 'Mar 14',
-  },
-  {
-    id: '7',
-    title: 'Vendor invoice',
-    body: 'New bill from Acme Supplies for __CUR_120000__ is pending.',
-    read: false,
-    createdAt: 'Mar 14',
-  },
-  {
-    id: '8',
-    title: 'Balance sheet ready',
-    body: 'Your Balance sheet report for February is ready to view.',
-    read: true,
-    createdAt: 'Mar 13',
-  },
-  {
-    id: '9',
-    title: 'Customer reminder',
-    body: 'Reminder: Invoice INV-2023-005 is due in 3 days.',
-    read: false,
-    createdAt: 'Mar 12',
-  },
-  {
-    id: '10',
-    title: 'Subscription renewal',
-    body: 'Your Asture FMS subscription will renew on Apr 1, 2025.',
-    read: true,
-    createdAt: 'Mar 10',
-  },
-];
-
 const DashboardLayout: React.FC<DashboardLayoutProps> = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -323,26 +242,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = () => {
     clear: clearProfile,
   } = useProfile();
   const { theme, toggleTheme } = useTheme();
-  const { formatCurrency } = useCurrency();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
-  const [showKnowledgePanel, setShowKnowledgePanel] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(
-    INITIAL_NOTIFICATIONS
-  );
-  const notificationsWithCurrency = React.useMemo(
-    () =>
-      notifications.map(n => ({
-        ...n,
-        body: n.body
-          .replace('__CUR_45000__', formatCurrency(45000))
-          .replace('__CUR_120000__', formatCurrency(120000)),
-      })),
-    [notifications, formatCurrency]
-  );
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >(() => ({
@@ -362,8 +265,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = () => {
     navigate('/login', { replace: true });
   };
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-
   // Load profile once and keep in context; redirect to onboarding if no organisation profile.
   useEffect(() => {
     void ensureLoaded();
@@ -375,18 +276,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = () => {
       navigate('/onboarding/business', { replace: true });
     }
   }, [loading, profiles.length, navigate]);
-
-  const handleMarkAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    );
-  };
-
-  const handleMarkAsUnread = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: false } : n))
-    );
-  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -466,12 +355,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = () => {
               </p>
             </div>
           </div>
-          <div
-            className='flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 shrink-0 shadow-input'
-            aria-hidden
-          >
-            <ChevronDown className='h-3.5 w-3.5 text-gray-500 dark:text-gray-400' />
-          </div>
         </div>
         <nav className='p-4 flex-1 overflow-y-auto flex flex-col gap-2'>
           <NavContent
@@ -495,16 +378,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = () => {
           >
             <Menu className='h-5 w-5' />
           </button>
-          <div className='flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none sm:max-w-md md:max-w-lg lg:max-w-xl'>
-            <div className='relative'>
-              <Search className='absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 dark:text-gray-500 pointer-events-none' />
-              <input
-                type='search'
-                placeholder='Search...'
-                className='input-field pl-9 py-2.5 text-sm w-full bg-gray-50/80 dark:bg-gray-700/80 border-gray-200/90 dark:border-gray-600'
-              />
-            </div>
-          </div>
+          <div className='flex-1 min-w-0 w-full sm:w-auto order-last sm:order-none sm:max-w-md md:max-w-lg lg:max-w-xl' />
           <div className='hidden lg:block flex-1 min-w-0' aria-hidden />
           <div className='flex items-center gap-1 sm:gap-2'>
             <button
@@ -522,31 +396,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = () => {
               ) : (
                 <Moon className='h-5 w-5' />
               )}
-            </button>
-            <button
-              type='button'
-              onClick={() => setShowNotificationsPanel(true)}
-              className='relative p-2.5 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-xl transition-colors'
-              aria-label={
-                unreadCount > 0
-                  ? `${unreadCount} unread notifications`
-                  : 'Notifications'
-              }
-            >
-              <Bell className='h-5 w-5' />
-              {unreadCount > 0 && (
-                <span className='absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 text-[10px] font-semibold text-white bg-red-500 rounded-full'>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </button>
-            <button
-              type='button'
-              onClick={() => setShowKnowledgePanel(true)}
-              className='p-2.5 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-xl transition-colors'
-              aria-label='Knowledge base'
-            >
-              <HelpCircle className='h-5 w-5' />
             </button>
             <div className='relative' ref={profileRef}>
               <button
@@ -652,19 +501,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = () => {
           <Outlet />
         </main>
       </div>
-
-      <NotificationsPanel
-        open={showNotificationsPanel}
-        onClose={() => setShowNotificationsPanel(false)}
-        notifications={notificationsWithCurrency}
-        onMarkAsRead={handleMarkAsRead}
-        onMarkAsUnread={handleMarkAsUnread}
-      />
-
-      <KnowledgeBasePanel
-        open={showKnowledgePanel}
-        onClose={() => setShowKnowledgePanel(false)}
-      />
 
       {/* Logout confirmation */}
       {showLogoutConfirm && (

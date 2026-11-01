@@ -1,13 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Clock } from 'lucide-react';
 import { useQuery } from 'react-query';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useProfile } from '@/contexts/ProfileContext';
-import SelectableDataTable from '@/components/SelectableDataTable';
-import ListPageToolbar from '@/components/ListPageToolbar';
-import PaginationFooter from '@/components/PaginationFooter';
-import DateFilterDropdown, {
+import ListPage from '@/components/ListPage';
+import StatusBadge from '@/components/StatusBadge';
+import {
   getDefaultDateFilterState,
   type DateFilterState,
 } from '@/components/reports/DateFilterDropdown';
@@ -17,6 +15,9 @@ import {
   type InvoiceResponse,
   type InvoiceStatus,
 } from '@/services/invoicesApi';
+import { getDateRangeForPreset } from '@/lib/dateFilters';
+import { displayPublicId } from '@/utils/displayId';
+import { getApiErrorMessage } from '@/utils/apiError';
 
 interface InvoiceRow {
   id: string;
@@ -64,38 +65,15 @@ function invoiceToRow(invoice: InvoiceResponse): InvoiceRow {
 
   return {
     id: invoice.id,
-    publicId: invoice.public_id ?? invoice.invoice_number,
+    publicId: displayPublicId(invoice.public_id ?? invoice.invoice_number),
     customerId: invoice.customer_id,
     amount: Number(invoice.total ?? 0),
     created: createdDisplay,
     due: dueDisplay,
-    // Customer name/email are not yet exposed on the invoice response;
-    // these can be filled in later when the backend projects them.
-    customerName: 'Customer',
-    email: '',
+    customerName: displayPublicId(invoice.customer_name),
+    email: invoice.customer_email ?? '',
     status: (invoice.status || 'draft') as InvoiceStatus,
   };
-}
-
-function StatusBadge({ status }: { status: InvoiceStatus }) {
-  const map: Record<InvoiceStatus, string> = {
-    paid: 'badge-success',
-    overdue: 'badge-error',
-    sent: 'badge-warning',
-    partially_paid: 'badge-info',
-    draft: 'bg-gray-100 text-gray-700',
-    cancelled: 'bg-gray-100 text-gray-500',
-  };
-  return (
-    <span
-      className={`badge inline-flex items-center gap-1 ${map[status] ?? ''}`}
-    >
-      {(status === 'sent' || status === 'overdue') && (
-        <Clock className='h-3 w-3 shrink-0' />
-      )}
-      {status.replace('_', ' ')}
-    </span>
-  );
 }
 
 const getInvoiceColumns = (formatCurrency: (n: number) => string) => [
@@ -105,7 +83,7 @@ const getInvoiceColumns = (formatCurrency: (n: number) => string) => [
     cell: (row: InvoiceRow) => (
       <Link
         to={`/sales/invoice/${row.id}`}
-        className='text-[#073E60] dark:text-primary-400 hover:underline'
+        className='text-primary-600 dark:text-primary-400 hover:underline'
       >
         {row.publicId}
       </Link>
@@ -118,16 +96,18 @@ const getInvoiceColumns = (formatCurrency: (n: number) => string) => [
       <>
         <Link
           to={`/sales/customers?customer_id=${encodeURIComponent(row.customerId)}`}
-          className='block text-[#073E60] dark:text-primary-400 hover:underline'
+          className='block text-primary-600 dark:text-primary-400 hover:underline'
         >
           {row.customerName}
         </Link>
-        <a
-          href={`mailto:${row.email}`}
-          className='text-xs text-[#073E60] dark:text-primary-400 hover:underline dark:hover:text-primary-300'
-        >
-          {row.email}
-        </a>
+        {row.email ? (
+          <a
+            href={`mailto:${row.email}`}
+            className='text-xs text-primary-600 dark:text-primary-400 hover:underline dark:hover:text-primary-300'
+          >
+            {row.email}
+          </a>
+        ) : null}
       </>
     ),
   },
@@ -151,7 +131,9 @@ const getInvoiceColumns = (formatCurrency: (n: number) => string) => [
   {
     id: 'status',
     header: 'Status' as const,
-    cell: (row: InvoiceRow) => <StatusBadge status={row.status} />,
+    cell: (row: InvoiceRow) => (
+      <StatusBadge status={row.status} family='invoice' />
+    ),
   },
 ];
 
@@ -164,6 +146,7 @@ const Invoices: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [dateFilter, setDateFilter] = useState<DateFilterState>(
@@ -175,19 +158,35 @@ const Invoices: React.FC = () => {
     [formatCurrency]
   );
 
+  const { date_from, date_to } = getDateRangeForPreset(
+    dateFilter.preset,
+    dateFilter.customFrom,
+    dateFilter.customTo
+  );
+
   const {
     data: listData,
     isLoading,
     error,
   } = useQuery(
-    ['invoices', organisationId, page, search, dateFilter, customerIdFromUrl],
+    [
+      'invoices',
+      organisationId,
+      page,
+      pageSize,
+      search,
+      date_from,
+      date_to,
+      customerIdFromUrl,
+    ],
     () =>
       listInvoices(organisationId, {
         page,
-        page_size: 20,
-        from_date: dateFilter.customFrom,
-        to_date: dateFilter.customTo,
+        page_size: pageSize,
+        from_date: date_from,
+        to_date: date_to,
         customer_id: customerIdFromUrl ?? null,
+        search: search || undefined,
       }),
     { enabled: Boolean(organisationId) }
   );
@@ -222,47 +221,45 @@ const Invoices: React.FC = () => {
   }
 
   return (
-    <div className='space-y-4'>
-      <ListPageToolbar
-        searchValue={search}
-        onSearchChange={setSearch}
-        filterLabel='All invoices'
-        rightSlot={
-          <DateFilterDropdown
-            state={dateFilter}
-            onStateChange={setDateFilter}
-          />
-        }
-        primaryLabel='Create invoice'
-        primaryTo='/sales/invoice/new'
-      />
-      {error != null && (
-        <p className='text-sm text-red-600 dark:text-red-400'>
-          {error instanceof Error ? error.message : 'Failed to load invoices'}
-        </p>
-      )}
-      <SelectableDataTable<InvoiceRow>
-        data={sortedData}
-        getRowId={row => row.id}
-        columns={columns}
-        selectionLabel='invoices'
-        tableMinWidth='640px'
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onSort={(key, dir) => {
+    <ListPage<InvoiceRow>
+      search={{
+        value: search,
+        onChange: v => {
+          setSearch(v);
+          setPage(1);
+        },
+      }}
+      dateFilter={{ state: dateFilter, onChange: setDateFilter }}
+      primaryAction={{ label: 'Create invoice', to: '/sales/invoice/new' }}
+      data={sortedData}
+      getRowId={row => row.id}
+      columns={columns}
+      selectionLabel='invoices'
+      tableMinWidth='640px'
+      sort={{
+        key: sortKey,
+        dir: sortDir,
+        onSort: (key, dir) => {
           setSortKey(key);
           setSortDir(dir);
-        }}
-        footer={
-          <PaginationFooter
-            page={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-          />
-        }
-        emptyMessage={isLoading ? 'Loading invoices…' : 'No invoices found.'}
-      />
-    </div>
+        },
+      }}
+      pagination={{
+        page,
+        totalPages,
+        pageSize,
+        onPageChange: setPage,
+        onPageSizeChange: n => {
+          setPageSize(n);
+          setPage(1);
+        },
+      }}
+      isLoading={isLoading}
+      errorMessage={
+        error ? getApiErrorMessage(error, 'Failed to load invoices') : null
+      }
+      emptyMessage='No invoices found.'
+    />
   );
 };
 
