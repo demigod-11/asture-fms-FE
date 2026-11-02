@@ -18,12 +18,26 @@ export interface AddBillPayload {
   line_items: { description: string; total: string; coa_id?: string }[];
 }
 
+export interface EditBillInitial {
+  id: string;
+  vendor_id: string;
+  vendor_name?: string | null;
+  vendor_email?: string | null;
+  bill_number?: string | null;
+  bill_date?: string | null;
+  due_date?: string | null;
+  terms?: string | null;
+  notes?: string | null;
+  line_items: { description: string; total: string; coa_id?: string }[];
+}
+
 interface AddBillDrawerProps {
   open: boolean;
   onClose: () => void;
   onSaved?: (payload: AddBillPayload) => void;
   isSaving?: boolean;
   saveError?: string | undefined;
+  initial?: EditBillInitial | null;
 }
 
 interface LineItem {
@@ -37,12 +51,40 @@ interface LineItem {
 
 const TERMS_OPTIONS = ['Net 15', 'Net 30', 'Net 45', 'Due on receipt'];
 
+const emptyLineItems = (): LineItem[] => [
+  {
+    id: '1',
+    category: '',
+    accountNumber: '',
+    coaId: '',
+    description: '',
+    total: '',
+  },
+  {
+    id: '2',
+    category: '',
+    accountNumber: '',
+    coaId: '',
+    description: '',
+    total: '',
+  },
+  {
+    id: '3',
+    category: '',
+    accountNumber: '',
+    coaId: '',
+    description: '',
+    total: '',
+  },
+];
+
 const AddBillDrawer: React.FC<AddBillDrawerProps> = ({
   open,
   onClose,
   onSaved,
   isSaving = false,
   saveError,
+  initial = null,
 }) => {
   const { formatCurrency } = useCurrency();
   const { profiles } = useProfile();
@@ -58,32 +100,45 @@ const AddBillDrawer: React.FC<AddBillDrawerProps> = ({
   const [termsOpen, setTermsOpen] = useState(false);
   const [vendorOpen, setVendorOpen] = useState(false);
   const [paymentMemo, setPaymentMemo] = useState('');
-  const [lineItems, setLineItems] = useState<LineItem[]>([
-    {
-      id: '1',
-      category: '',
-      accountNumber: '',
-      coaId: '',
-      description: '',
-      total: '',
-    },
-    {
-      id: '2',
-      category: '',
-      accountNumber: '',
-      coaId: '',
-      description: '',
-      total: '',
-    },
-    {
-      id: '3',
-      category: '',
-      accountNumber: '',
-      coaId: '',
-      description: '',
-      total: '',
-    },
-  ]);
+  const [lineItems, setLineItems] = useState<LineItem[]>(emptyLineItems);
+
+  React.useEffect(() => {
+    if (!open) return;
+    if (initial) {
+      setVendorId(initial.vendor_id);
+      setVendorName(initial.vendor_name ?? '');
+      setVendorEmails(initial.vendor_email ?? '');
+      setBillingAddress('');
+      setBillNumber(initial.bill_number ?? '');
+      setBillDate(initial.bill_date ?? '');
+      setDueDate(initial.due_date ?? '');
+      setTerms(initial.terms ?? '');
+      setPaymentMemo(initial.notes ?? '');
+      setLineItems(
+        initial.line_items.length > 0
+          ? initial.line_items.map((li, index) => ({
+              id: String(index + 1),
+              category: '',
+              accountNumber: '',
+              coaId: li.coa_id ?? '',
+              description: li.description,
+              total: li.total,
+            }))
+          : emptyLineItems()
+      );
+      return;
+    }
+    setVendorId(null);
+    setVendorName('');
+    setVendorEmails('');
+    setBillingAddress('');
+    setBillNumber('');
+    setBillDate('');
+    setDueDate('');
+    setTerms('');
+    setPaymentMemo('');
+    setLineItems(emptyLineItems());
+  }, [open, initial]);
 
   const addLineItem = () => {
     setLineItems(prev => [
@@ -200,7 +255,7 @@ const AddBillDrawer: React.FC<AddBillDrawerProps> = ({
               id='create-bill-title'
               className='text-lg font-semibold text-gray-900 dark:text-gray-100 truncate'
             >
-              Create bill
+              {initial ? 'Edit bill' : 'Create bill'}
             </h2>
           </div>
           <div className='flex items-center gap-2 shrink-0'>

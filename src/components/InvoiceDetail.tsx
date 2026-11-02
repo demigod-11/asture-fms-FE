@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery } from 'react-query';
+import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { ArrowLeft, Calendar, Mail, Printer } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -13,6 +13,8 @@ import {
   getInvoice,
   getInvoiceEmailPreview,
   sendInvoiceEmail,
+  deleteInvoice,
+  updateInvoice,
   type InvoiceResponse,
   type InvoiceLineItemResponse,
 } from '@/services/invoicesApi';
@@ -139,6 +141,7 @@ function InvoiceLineItemsTable({
 
 const InvoiceDetail: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { organisationId, invoice, isLoading, error } = useInvoiceDetail();
   const { formatCurrency } = useCurrency();
 
@@ -203,6 +206,29 @@ const InvoiceDetail: React.FC = () => {
     );
     window.location.assign(res.authorization_url);
   });
+
+  const deleteMutation = useMutation(
+    () => deleteInvoice(organisationId, invoice!.id),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['invoices', organisationId]);
+        navigate('/sales/invoice');
+      },
+    }
+  );
+
+  const voidMutation = useMutation(
+    () =>
+      updateInvoice(organisationId, invoice!.id, {
+        status: 'cancelled',
+      } as never),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['invoice', organisationId, invoice?.id]);
+        queryClient.invalidateQueries(['invoices', organisationId]);
+      },
+    }
+  );
 
   const handlePrint = () => {
     window.print();
@@ -284,13 +310,53 @@ const InvoiceDetail: React.FC = () => {
               {payNowMutation.isLoading ? 'Opening checkout…' : 'Pay now'}
             </button>
           )}
-          <button
-            type='button'
-            onClick={() => navigate(`/sales/invoice/${invoice.id}/edit`)}
-            className='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-[#073E60] dark:border-primary-500 text-[#073E60] dark:text-primary-400 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
-          >
-            Edit invoice
-          </button>
+          {invoice.status !== 'paid' && invoice.status !== 'cancelled' ? (
+            <button
+              type='button'
+              onClick={() => navigate(`/sales/invoice/${invoice.id}/edit`)}
+              className='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-primary-600 dark:border-primary-500 text-primary-600 dark:text-primary-400 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
+            >
+              Edit invoice
+            </button>
+          ) : null}
+          {invoice.status === 'draft' ? (
+            <button
+              type='button'
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Delete draft invoice "${invoice.invoice_number || invoice.id}"?`
+                  )
+                ) {
+                  deleteMutation.mutate();
+                }
+              }}
+              disabled={deleteMutation.isLoading}
+              className='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-red-200 text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50'
+            >
+              Delete
+            </button>
+          ) : null}
+          {invoice.status !== 'draft' &&
+          invoice.status !== 'paid' &&
+          invoice.status !== 'cancelled' ? (
+            <button
+              type='button'
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Void invoice "${invoice.invoice_number || invoice.id}"? This cannot be undone.`
+                  )
+                ) {
+                  voidMutation.mutate();
+                }
+              }}
+              disabled={voidMutation.isLoading}
+              className='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-red-200 text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50'
+            >
+              Void
+            </button>
+          ) : null}
           <button
             type='button'
             onClick={handlePrint}

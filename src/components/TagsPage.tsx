@@ -223,6 +223,12 @@ const TagsPage: React.FC = () => {
           />
         )}
         onRowClick={row => setEditingTag(row)}
+        onBulkDelete={ids => {
+          void Promise.all(ids.map(id => deleteTag(organisationId, id))).then(
+            () => queryClient.invalidateQueries(['tags', organisationId])
+          );
+        }}
+        bulkDeleteConfirmMessage='Delete the selected tags?'
         pagination={{
           page,
           totalPages,

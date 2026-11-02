@@ -234,6 +234,20 @@ const Expenses: React.FC = () => {
             setSortDir(dir);
           },
         }}
+        onRowClick={row => {
+          const match = (data?.items ?? []).find(item => item.id === row.id);
+          if (!match) return;
+          setEditingExpense(match);
+          setAddExpenseOpen(true);
+        }}
+        onBulkDelete={ids => {
+          void Promise.all(
+            ids.map(id => deleteExpense(organisationId, id))
+          ).then(() =>
+            queryClient.invalidateQueries(['expenses', organisationId])
+          );
+        }}
+        bulkDeleteConfirmMessage='Delete the selected expenses?'
         rowActions={row => (
           <RowActions
             onEdit={() => {

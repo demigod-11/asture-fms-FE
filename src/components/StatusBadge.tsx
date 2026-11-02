@@ -5,7 +5,8 @@ export type StatusBadgeFamily =
   | 'bill'
   | 'expense'
   | 'invitation'
-  | 'coa';
+  | 'coa'
+  | 'product';
 
 interface StatusBadgeProps {
   status: string;
@@ -45,6 +46,7 @@ function toneFor(status: string, family?: StatusBadgeFamily): BadgeTone {
       if (s === 'cancelled') return 'error';
       return 'warning';
     case 'coa':
+    case 'product':
       return s === 'active' ? 'success' : 'warning';
     default:
       if (s === 'paid' || s === 'accepted' || s === 'active') return 'success';

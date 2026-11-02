@@ -27,7 +27,7 @@ function getDefaultDates() {
 export function getDefaultReportToolbarState(): ReportToolbarState {
   const { today, startOfYear } = getDefaultDates();
   return {
-    fiscalPeriod: 'last-year',
+    fiscalPeriod: 'this-year',
     customFrom: startOfYear,
     customTo: today,
     compareEnabled: false,

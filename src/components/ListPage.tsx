@@ -35,6 +35,8 @@ export type ListPageProps<T> = {
     onSort: (k: string, d: 'asc' | 'desc') => void;
   };
   onRowClick?: (row: T) => void;
+  onBulkDelete?: (selectedIds: string[]) => void;
+  bulkDeleteConfirmMessage?: string;
   rowActions?: (row: T) => React.ReactNode;
   footerCells?: React.ReactNode[];
   tableMinWidth?: string;
@@ -63,6 +65,8 @@ function ListPage<T>({
   showImportExport = false,
   sort,
   onRowClick,
+  onBulkDelete,
+  bulkDeleteConfirmMessage,
   rowActions,
   footerCells,
   tableMinWidth,
@@ -106,6 +110,8 @@ function ListPage<T>({
         onSort={sort?.onSort}
         renderRowActions={rowActions}
         onRowClick={onRowClick}
+        onBulkDelete={onBulkDelete}
+        bulkDeleteConfirmMessage={bulkDeleteConfirmMessage}
         emptyMessage={effectiveEmptyMessage}
         footerCells={footerCells}
         footer={

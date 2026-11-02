@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import ListPage from '@/components/ListPage';
 import RowActions from '@/components/RowActions';
@@ -54,6 +55,8 @@ const Vendors: React.FC = () => {
   const { profiles } = useProfile();
   const organisationId = profiles[0]?.organisation_id ?? '';
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const vendorIdFromUrl = searchParams.get('vendor_id') ?? null;
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -77,6 +80,12 @@ const Vendors: React.FC = () => {
       }),
     { enabled: Boolean(organisationId) }
   );
+
+  useEffect(() => {
+    if (!vendorIdFromUrl || !listData?.items) return;
+    const match = listData.items.find(v => v.id === vendorIdFromUrl);
+    if (match) setEditingVendor(vendorToRow(match));
+  }, [vendorIdFromUrl, listData]);
 
   const totalPages = listData?.total_pages ?? 0;
   const rowData = useMemo(
@@ -190,6 +199,14 @@ const Vendors: React.FC = () => {
           />
         )}
         onRowClick={row => setEditingVendor(row)}
+        onBulkDelete={ids => {
+          void Promise.all(
+            ids.map(id => deleteVendor(organisationId, id))
+          ).then(() =>
+            queryClient.invalidateQueries(['vendors', organisationId])
+          );
+        }}
+        bulkDeleteConfirmMessage='Delete the selected vendors?'
         pagination={{
           page,
           totalPages,

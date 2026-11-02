@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { useQuery } from 'react-query';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import ListPage from '@/components/ListPage';
 import StatusBadge from '@/components/StatusBadge';
+import RowActions from '@/components/RowActions';
 import {
   getDefaultDateFilterState,
   type DateFilterState,
@@ -12,6 +13,8 @@ import {
 import NoOrganisationNotice from '@/components/NoOrganisationNotice';
 import {
   listInvoices,
+  deleteInvoice,
+  updateInvoice,
   type InvoiceResponse,
   type InvoiceStatus,
 } from '@/services/invoicesApi';
@@ -140,6 +143,8 @@ const getInvoiceColumns = (formatCurrency: (n: number) => string) => [
 const Invoices: React.FC = () => {
   const { formatCurrency } = useCurrency();
   const { profiles } = useProfile();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const customerIdFromUrl = searchParams.get('customer_id') ?? undefined;
   const organisationId = profiles[0]?.organisation_id ?? '';
@@ -151,6 +156,27 @@ const Invoices: React.FC = () => {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [dateFilter, setDateFilter] = useState<DateFilterState>(
     getDefaultDateFilterState()
+  );
+
+  const deleteMutation = useMutation(
+    (invoiceId: string) => deleteInvoice(organisationId, invoiceId),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['invoices', organisationId]);
+      },
+    }
+  );
+
+  const voidMutation = useMutation(
+    (invoiceId: string) =>
+      updateInvoice(organisationId, invoiceId, {
+        status: 'cancelled',
+      } as never),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['invoices', organisationId]);
+      },
+    }
   );
 
   const columns = useMemo(
@@ -244,6 +270,50 @@ const Invoices: React.FC = () => {
           setSortDir(dir);
         },
       }}
+      onRowClick={row => navigate(`/sales/invoice/${row.id}`)}
+      onBulkDelete={ids => {
+        const deletable = sortedData.filter(
+          r => ids.includes(r.id) && r.status === 'draft'
+        );
+        void Promise.all(
+          deletable.map(r => deleteInvoice(organisationId, r.id))
+        ).then(() =>
+          queryClient.invalidateQueries(['invoices', organisationId])
+        );
+      }}
+      bulkDeleteConfirmMessage='Delete selected draft invoices? (Non-draft rows are skipped.)'
+      rowActions={row => (
+        <RowActions
+          onDelete={
+            row.status === 'draft'
+              ? () => deleteMutation.mutate(row.id)
+              : undefined
+          }
+          confirmMessage={`Delete invoice "${row.publicId}"?`}
+          deleteLabel='Delete invoice'
+          extra={
+            row.status !== 'draft' &&
+            row.status !== 'paid' &&
+            row.status !== 'cancelled' ? (
+              <button
+                type='button'
+                className='px-2 py-1 text-xs text-red-600 hover:underline'
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Void invoice "${row.publicId}"? This cannot be undone.`
+                    )
+                  ) {
+                    voidMutation.mutate(row.id);
+                  }
+                }}
+              >
+                Void
+              </button>
+            ) : null
+          }
+        />
+      )}
       pagination={{
         page,
         totalPages,

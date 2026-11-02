@@ -207,6 +207,14 @@ const Customers: React.FC = () => {
           />
         )}
         onRowClick={row => setEditingCustomer(row)}
+        onBulkDelete={ids => {
+          void Promise.all(
+            ids.map(id => deleteCustomer(organisationId, id))
+          ).then(() =>
+            queryClient.invalidateQueries(['customers', organisationId])
+          );
+        }}
+        bulkDeleteConfirmMessage='Delete the selected customers?'
         pagination={{
           page,
           totalPages,

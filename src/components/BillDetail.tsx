@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from 'react-query';
+import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { ArrowLeft, Calendar, Mail, Printer } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { getOrganisation } from '@/services/authApi';
-import { getBill, type BillResponse } from '@/services/billsApi';
+import { getBill, updateBill, type BillResponse } from '@/services/billsApi';
 import type { components } from '@/generated/api';
 
 type BillLineItemResponse = components['schemas']['BillLineItemResponse'];
@@ -129,6 +129,7 @@ function BillLineItemsTable({
 
 const BillDetail: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { organisationId, bill, isLoading, error } = useBillDetail();
   const { formatCurrency } = useCurrency();
 
@@ -139,6 +140,17 @@ const BillDetail: React.FC = () => {
   );
 
   const [activeView, setActiveView] = useState<ActiveView>('view');
+
+  const statusMutation = useMutation(
+    (status: string) =>
+      updateBill(organisationId, bill!.id, { status } as never),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['bill', organisationId, bill?.id]);
+        queryClient.invalidateQueries(['bills', organisationId]);
+      },
+    }
+  );
 
   const totals = useMemo(() => {
     if (!bill) {
@@ -246,6 +258,35 @@ const BillDetail: React.FC = () => {
           </div>
         </div>
         <div className='flex flex-wrap gap-2'>
+          {bill.status === 'draft' ? (
+            <>
+              <button
+                type='button'
+                onClick={() => navigate('/purchase/bills')}
+                className='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
+              >
+                Edit from list
+              </button>
+              <button
+                type='button'
+                onClick={() => statusMutation.mutate('open')}
+                disabled={statusMutation.isLoading}
+                className='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
+              >
+                Approve
+              </button>
+            </>
+          ) : null}
+          {bill.status === 'open' || bill.status === 'overdue' ? (
+            <button
+              type='button'
+              onClick={() => statusMutation.mutate('paid')}
+              disabled={statusMutation.isLoading}
+              className='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50'
+            >
+              Mark paid
+            </button>
+          ) : null}
           <button
             type='button'
             onClick={handlePrint}
@@ -377,8 +418,8 @@ const BillDetail: React.FC = () => {
                   <p className='text-sm'>
                     Vendor:{' '}
                     <Link
-                      to='/purchase/vendor'
-                      className='text-[#073E60] dark:text-primary-400 hover:underline'
+                      to={`/purchase/vendor?vendor_id=${encodeURIComponent(bill.vendor_id)}`}
+                      className='text-primary-600 dark:text-primary-400 hover:underline'
                     >
                       {vendorName || vendorEmail}
                     </Link>

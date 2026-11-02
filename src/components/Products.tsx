@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import ListPage from '@/components/ListPage';
 import RowActions from '@/components/RowActions';
+import StatusBadge from '@/components/StatusBadge';
 import AddProductDrawer from '@/components/AddProductDrawer';
 import type { EditProductInitial } from '@/components/AddProductDrawer';
 import { useProfile } from '@/contexts/ProfileContext';
@@ -173,6 +174,13 @@ const Products: React.FC = () => {
             '—'
           ),
       },
+      {
+        id: 'status',
+        header: 'Status' as const,
+        cell: (row: ProductRow) => (
+          <StatusBadge status={row.status} family='product' />
+        ),
+      },
     ],
     [formatCurrency]
   );
@@ -255,6 +263,14 @@ const Products: React.FC = () => {
             status: row.status as 'active' | 'inactive',
           })
         }
+        onBulkDelete={ids => {
+          void Promise.all(
+            ids.map(id => deleteProduct(organisationId, id))
+          ).then(() =>
+            queryClient.invalidateQueries(['products', organisationId])
+          );
+        }}
+        bulkDeleteConfirmMessage='Delete the selected products?'
         pagination={{
           page,
           totalPages,

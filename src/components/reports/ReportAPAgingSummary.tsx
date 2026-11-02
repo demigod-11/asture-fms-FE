@@ -87,7 +87,7 @@ const ReportAPAgingSummary: React.FC = () => {
         header: 'Vendor',
         cell: r => (
           <Link
-            to='/purchase/bills'
+            to={`/purchase/bills?vendor_id=${encodeURIComponent(r.id)}`}
             className='text-primary-600 dark:text-primary-400 hover:underline'
           >
             {r.vendor}

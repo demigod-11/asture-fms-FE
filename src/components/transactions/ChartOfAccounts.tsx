@@ -85,7 +85,6 @@ const ChartOfAccounts: React.FC = () => {
         page,
         page_size: pageSize,
         name: search || undefined,
-        code: search || undefined,
       }),
     { enabled: Boolean(organisationId) }
   );
@@ -236,6 +235,16 @@ const ChartOfAccounts: React.FC = () => {
             setSortDir(dir);
           },
         }}
+        onRowClick={row => {
+          const coa = items.find(c => c.id === row.id);
+          if (coa) setEditingCoa(coa);
+        }}
+        onBulkDelete={ids => {
+          void Promise.all(
+            ids.map(id => deactivateCoa(organisationId, id))
+          ).then(() => queryClient.invalidateQueries(['coa', organisationId]));
+        }}
+        bulkDeleteConfirmMessage='Deactivate the selected accounts?'
         rowActions={row => {
           const coa = items.find(c => c.id === row.id);
           return (
